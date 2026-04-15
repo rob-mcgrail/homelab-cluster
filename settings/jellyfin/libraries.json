@@ -1,5 +1,12 @@
 [
   {
+    "Name": "Kids Movies",
+    "CollectionType": "movies",
+    "Locations": [
+      "/data/media/kids/movies"
+    ]
+  },
+  {
     "Name": "Shows",
     "CollectionType": "tvshows",
     "Locations": [
@@ -7,18 +14,17 @@
     ]
   },
   {
-    "Name": "Kids",
-    "CollectionType": null,
-    "Locations": [
-      "/data/media/kids/movies",
-      "/data/media/kids/tv"
-    ]
-  },
-  {
     "Name": "Movies",
     "CollectionType": "movies",
     "Locations": [
       "/data/media/movies"
+    ]
+  },
+  {
+    "Name": "Kids TV",
+    "CollectionType": "tvshows",
+    "Locations": [
+      "/data/media/kids/tv"
     ]
   }
 ]

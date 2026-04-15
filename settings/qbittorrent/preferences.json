@@ -15,8 +15,8 @@
   "alt_dl_limit": 614400,
   "scheduler_enabled": true,
   "queueing_enabled": true,
-  "max_active_downloads": 3,
-  "max_active_uploads": 3,
-  "max_active_torrents": 5,
+  "max_active_downloads": 2,
+  "max_active_uploads": 2,
+  "max_active_torrents": 3,
   "listen_port": 6881
 }

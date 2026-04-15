@@ -1,6 +1,5 @@
 {
   "enabled_providers": [
-    "yifysubtitles",
     "opensubtitlescom"
   ],
   "languages": {

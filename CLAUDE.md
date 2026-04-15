@@ -26,3 +26,4 @@ Follows the [Servarr Docker Guide](https://wiki.servarr.com/docker-guide) path c
 | Radarr      | 7878 |
 | Prowlarr    | 9696 |
 | qBittorrent | 8080 |
+| Bazarr      | 6767 |
