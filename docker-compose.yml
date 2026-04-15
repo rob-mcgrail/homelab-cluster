@@ -7,9 +7,14 @@ services:
       - PGID=${PGID}
       - UMASK=${UMASK}
       - TZ=${TZ}
+      - DOCKER_MODS=linuxserver/mods:jellyfin-opencl-intel
     volumes:
       - ${CONFIG_ROOT}/jellyfin:/config
       - ${DATA_ROOT}/media:/data/media
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "993"
     ports:
       - 8096:8096
     restart: unless-stopped
@@ -75,3 +80,9 @@ services:
       - 6881:6881
       - 6881:6881/udp
     restart: unless-stopped
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

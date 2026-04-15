@@ -45,6 +45,11 @@ echo ""
 echo "==> Adding $(whoami) to $GROUP_NAME group"
 sudo usermod -aG "$GROUP_NAME" "$(whoami)"
 
+# Add jellyfin to the render group for Intel QSV hardware acceleration
+echo ""
+echo "==> Adding jellyfin to render group (Intel QSV)"
+sudo usermod -aG render jellyfin
+
 echo ""
 echo "==> Writing IDs to $ENV_FILE"
 sed -i "s/^PGID=.*/PGID=$PGID/" "$ENV_FILE"

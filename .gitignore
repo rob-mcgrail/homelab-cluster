@@ -1,2 +1,5 @@
 # Container config directories (contain runtime state, API keys, databases)
 config/
+
+# API keys for service access
+.api_keys
