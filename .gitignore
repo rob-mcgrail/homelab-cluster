@@ -1,0 +1,2 @@
+# Container config directories (contain runtime state, API keys, databases)
+config/
