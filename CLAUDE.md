@@ -10,6 +10,25 @@ Follows the [Servarr Docker Guide](https://wiki.servarr.com/docker-guide) path c
 - qBittorrent only sees `/data/torrents`
 - Jellyfin only sees `/data/media`
 
+## Storage
+
+Data lives on a USB drive pooled via mergerfs:
+- `/mnt/disk1` — 3.6 TB ext4 USB drive (Seagate Expansion)
+- `/srv/data` — mergerfs mount pooling `/mnt/disk1` (and future drives)
+- `DATA_ROOT=/srv/data` in `.env` — all containers reference this
+
+Both the disk mount and mergerfs pool are in `/etc/fstab` with `nofail` so the system boots even if the USB drive isn't plugged in.
+
+### Adding another drive to the pool
+
+1. Identify: `lsblk` to find the new device (e.g. `/dev/sdb`)
+2. Format: `sudo parted /dev/sdb --script mklabel gpt mkpart primary ext4 0% 100% && sudo mkfs.ext4 -L data2 /dev/sdb1`
+3. Mount: `sudo mkdir -p /mnt/disk2 && sudo mount /dev/sdb1 /mnt/disk2`
+4. Add to fstab: `UUID=... /mnt/disk2 ext4 defaults,nofail 0 2`
+5. Update mergerfs fstab line to include the new disk: `/mnt/disk1:/mnt/disk2 /srv/data fuse.mergerfs ...`
+6. Remount: `sudo umount /srv/data && sudo mount -a`
+7. No container changes needed — mergerfs pools transparently.
+
 ## Key files
 
 - `.env` — all host paths, user/group IDs, timezone. Change `DATA_ROOT` when migrating to a new drive.
