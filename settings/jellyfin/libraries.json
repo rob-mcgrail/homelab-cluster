@@ -1,5 +1,12 @@
 [
   {
+    "Name": "Films",
+    "CollectionType": "movies",
+    "Locations": [
+      "/data/media/movies"
+    ]
+  },
+  {
     "Name": "Kids Movies",
     "CollectionType": "movies",
     "Locations": [
@@ -11,13 +18,6 @@
     "CollectionType": "tvshows",
     "Locations": [
       "/data/media/tv"
-    ]
-  },
-  {
-    "Name": "Movies",
-    "CollectionType": "movies",
-    "Locations": [
-      "/data/media/movies"
     ]
   },
   {
