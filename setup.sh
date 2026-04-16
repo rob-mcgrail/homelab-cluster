@@ -62,7 +62,7 @@ sed -i "s/^PUID_BAZARR=.*/PUID_BAZARR=${PUIDS[bazarr]}/" "$ENV_FILE"
 
 echo ""
 echo "==> Creating data directories"
-sudo mkdir -p "$DATA_ROOT"/{torrents/{movies,tv,music},media/{movies,tv,music}}
+sudo mkdir -p "$DATA_ROOT"/{torrents/{movies,tv,music},media/{movies,tv,music,kids/{movies,tv}}}
 sudo chown -R "$(whoami):$GROUP_NAME" "$DATA_ROOT"
 sudo chmod -R 775 "$DATA_ROOT"
 

@@ -13,15 +13,46 @@ Docker Compose stack for a home media server with a mobile-first dashboard and a
 
 ## Prerequisites
 
-- Docker and Docker Compose
+- Ubuntu/Debian server
 - A domain on Cloudflare (DNS only, not proxied)
 - A Cloudflare API token with Zone:DNS:Edit permission
-- [Claude Code](https://github.com/anthropics/claude-code) installed (for Movie Bot)
 - A USB drive or disk mounted for media storage
 
 ## Setup
 
-### 1. Clone and configure
+### 1. Install dependencies
+
+```sh
+# Docker
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+
+# jq (used by backup/restore scripts)
+sudo apt install -y jq
+
+# Claude Code (for Movie Bot)
+curl -fsSL https://claude.ai/install.sh | sh
+
+# mergerfs (for drive pooling)
+sudo apt install -y mergerfs
+```
+
+Log out and back in after adding yourself to the docker group.
+
+### 2. Mount your storage
+
+```sh
+# Format and mount your drive (adjust device as needed)
+sudo mkdir -p /mnt/disk1 /srv/data
+sudo mount /dev/sda1 /mnt/disk1
+
+# Set up mergerfs pool (add to /etc/fstab for persistence)
+sudo mergerfs -o defaults,allow_other,use_ino,cache.files=partial,dropcacheonclose=true,category.create=mfs /mnt/disk1 /srv/data
+```
+
+See `CLAUDE.md` for fstab entries and adding more drives.
+
+### 3. Clone and configure
 
 ```sh
 git clone <repo-url> && cd media-cluster
@@ -35,7 +66,7 @@ sudo ./setup.sh
 
 Edit `.env` to set your domain and check paths/UIDs match your system.
 
-### 2. API keys
+### 4. API keys
 
 ```sh
 cp .api_keys.example .api_keys
@@ -43,7 +74,7 @@ cp .api_keys.example .api_keys
 
 Fill in API keys from each service's web UI (Settings > General > API Key) and your Cloudflare API token.
 
-### 3. DNS
+### 5. DNS
 
 Add a wildcard A record on Cloudflare pointing to your server's LAN IP:
 
@@ -53,7 +84,7 @@ Add a wildcard A record on Cloudflare pointing to your server's LAN IP:
 
 Or add individual A records for: `jellyfin`, `sonarr`, `radarr`, `prowlarr`, `qbittorrent`, `bazarr`, `www`
 
-### 4. Start everything
+### 6. Start everything
 
 ```sh
 docker compose up -d
@@ -61,7 +92,7 @@ docker compose up -d
 
 Caddy will automatically obtain HTTPS certificates via DNS-01 challenge on first boot.
 
-### 5. Restore service settings
+### 7. Restore service settings
 
 The repo includes exported settings for all services (quality profiles, naming conventions, download clients, etc.). Once the containers are running and `.api_keys` is populated:
 
@@ -86,7 +117,7 @@ To back up settings after making changes:
 
 This exports current settings to `settings/` (secrets are stripped).
 
-### 6. Movie Bot cron
+### 8. Movie Bot cron
 
 Add to your crontab (`crontab -e`):
 
