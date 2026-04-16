@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <title>Movie Bot</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -21,7 +22,7 @@
 
     .viewport {
       display: flex;
-      width: 400vw;
+      width: 500vw;
       height: 100dvh;
     }
     .viewport.animating {
@@ -185,6 +186,23 @@
     }
     .history-prompt { font-size: 0.85rem; font-weight: 600; color: #4ade80; margin-bottom: 0.6rem; line-height: 1.4; }
     .history-result { font-size: 0.8rem; color: #a1a1aa; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .history-result p { margin: 0.4rem 0; }
+    .history-result h1, .history-result h2, .history-result h3 {
+      font-size: 0.85rem; color: #a1a1aa; margin: 0.6rem 0 0.3rem; font-weight: 600;
+    }
+    .history-result ul, .history-result ol { padding-left: 1.2rem; margin: 0.3rem 0; }
+    .history-result li { margin: 0.15rem 0; }
+    .history-result code {
+      background: #0d2015; padding: 0.1rem 0.3rem; border-radius: 4px;
+      font-size: 0.75rem; font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .history-result pre {
+      background: #0d2015; padding: 0.6rem; border-radius: 8px; margin: 0.4rem 0;
+      overflow-x: auto; font-size: 0.72rem;
+    }
+    .history-result pre code { background: none; padding: 0; }
+    .history-result strong { color: #a1a1aa; }
+    .history-result a { color: #4ade80; }
     .history-pending { font-size: 0.8rem; color: #52525b; font-style: italic; }
     .history-item.pending { border-color: #2a1a3a; background: #120e1a; }
     .history-item.pending .history-prompt { color: #c084fc; }
@@ -260,58 +278,14 @@
       text-shadow: 0 0 10px rgba(192, 132, 252, 0.3);
     }
     .bug-zone {
-      height: 50px; position: relative; overflow: hidden; flex-shrink: 0;
-      margin-top: auto;
+      position: absolute; inset: 0;
+      overflow: hidden; pointer-events: none; z-index: 0;
     }
+    .panel-status .panel-inner { position: relative; z-index: 1; }
     .bug {
-      position: absolute; bottom: 2px; font-size: 1.5rem; user-select: none; line-height: 1;
-      filter: drop-shadow(0 0 6px rgba(192, 132, 252, 0.3));
-    }
-    .bug-0 { animation: crawl0 8s linear infinite; }
-    .bug-1 { animation: crawl1 11s linear infinite; }
-    .bug-2 { animation: crawl2 6.5s linear infinite; }
-    @keyframes crawl0 {
-      0%   { left: -2rem; transform: scaleX(1) translateY(0); }
-      5%   { transform: scaleX(1) translateY(-2px); }
-      10%  { transform: scaleX(1) translateY(0); }
-      15%  { transform: scaleX(1) translateY(-2px); }
-      20%  { transform: scaleX(1) translateY(0); }
-      48%  { left: calc(100% + 2rem); transform: scaleX(1) translateY(0); }
-      50%  { left: calc(100% + 2rem); transform: scaleX(-1) translateY(0); }
-      55%  { transform: scaleX(-1) translateY(-2px); }
-      60%  { transform: scaleX(-1) translateY(0); }
-      65%  { transform: scaleX(-1) translateY(-2px); }
-      70%  { transform: scaleX(-1) translateY(0); }
-      98%  { left: -2rem; transform: scaleX(-1) translateY(0); }
-      100% { left: -2rem; transform: scaleX(1) translateY(0); }
-    }
-    @keyframes crawl1 {
-      0%   { left: calc(100% + 2rem); transform: scaleX(-1) translateY(0); }
-      3%   { transform: scaleX(-1) translateY(-3px); }
-      6%   { transform: scaleX(-1) translateY(0); }
-      12%  { transform: scaleX(-1) translateY(-1px); }
-      15%  { transform: scaleX(-1) translateY(0); }
-      25%  { left: 60%; transform: scaleX(-1) translateY(-2px); }
-      27%  { left: 60%; transform: scaleX(-1) translateY(0); } /* pause */
-      30%  { left: 60%; transform: scaleX(-1) translateY(0); }
-      48%  { left: -2rem; transform: scaleX(-1) translateY(0); }
-      50%  { left: -2rem; transform: scaleX(1) translateY(0); }
-      55%  { transform: scaleX(1) translateY(-2px); }
-      58%  { transform: scaleX(1) translateY(0); }
-      98%  { left: calc(100% + 2rem); transform: scaleX(1) translateY(0); }
-      100% { left: calc(100% + 2rem); transform: scaleX(-1) translateY(0); }
-    }
-    @keyframes crawl2 {
-      0%   { left: 30%; transform: scaleX(1) translateY(0); }
-      4%   { transform: scaleX(1) translateY(-3px); }
-      8%   { transform: scaleX(1) translateY(0); }
-      40%  { left: calc(100% + 2rem); transform: scaleX(1) translateY(0); }
-      42%  { left: calc(100% + 2rem); transform: scaleX(-1) translateY(0); }
-      46%  { transform: scaleX(-1) translateY(-2px); }
-      50%  { transform: scaleX(-1) translateY(0); }
-      90%  { left: -2rem; transform: scaleX(-1) translateY(0); }
-      92%  { left: -2rem; transform: scaleX(1) translateY(0); }
-      100% { left: 30%; transform: scaleX(1) translateY(0); }
+      position: absolute; user-select: none; line-height: 1;
+      filter: drop-shadow(0 0 4px rgba(192, 132, 252, 0.15));
+      will-change: left, top, transform;
     }
     .stat-card {
       background: #120e1a; border: 1px solid #1e1a2e; border-radius: 14px;
@@ -345,6 +319,52 @@
     }
     .load-chip small { color: #6a5a8a; font-weight: 400; }
 
+    /* ---- links (yellow) ---- */
+    .panel-links { background: #0e0c06; }
+    .section-title-yellow {
+      font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
+      color: #facc15; margin-bottom: 1rem;
+      text-shadow: 0 0 10px rgba(250, 204, 21, 0.25);
+    }
+    .bee-zone { height: 90px; position: relative; overflow: hidden; flex-shrink: 0; }
+    .bee {
+      position: absolute; font-size: 2.2rem; user-select: none; line-height: 1;
+      filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.3));
+    }
+    .bee-0 { animation: buzz0 5s ease-in-out infinite; }
+    .bee-1 { animation: buzz1 6.5s ease-in-out infinite; }
+    @keyframes buzz0 {
+      0%   { left: 15%; top: 30%; transform: rotate(0deg); }
+      15%  { left: 30%; top: 15%; transform: rotate(8deg) translateY(-3px); }
+      30%  { left: 55%; top: 35%; transform: rotate(-5deg) translateY(2px); }
+      50%  { left: 75%; top: 20%; transform: rotate(10deg) translateY(-4px); }
+      70%  { left: 50%; top: 45%; transform: rotate(-8deg) translateY(1px); }
+      85%  { left: 25%; top: 25%; transform: rotate(5deg) translateY(-2px); }
+      100% { left: 15%; top: 30%; transform: rotate(0deg); }
+    }
+    @keyframes buzz1 {
+      0%   { left: 70%; top: 50%; transform: scaleX(-1) rotate(0deg); }
+      20%  { left: 45%; top: 20%; transform: scaleX(-1) rotate(-10deg) translateY(-3px); }
+      40%  { left: 20%; top: 45%; transform: scaleX(-1) rotate(6deg) translateY(2px); }
+      60%  { left: 40%; top: 55%; transform: scaleX(-1) rotate(-4deg) translateY(-2px); }
+      80%  { left: 65%; top: 30%; transform: scaleX(-1) rotate(8deg) translateY(1px); }
+      100% { left: 70%; top: 50%; transform: scaleX(-1) rotate(0deg); }
+    }
+    .service-link {
+      display: flex; align-items: center; gap: 0.75rem;
+      background: #1a1806; border: 1px solid #2a2610; border-radius: 14px;
+      padding: 1rem; margin-bottom: 0.6rem;
+      text-decoration: none; color: #d4d4d8;
+      transition: border-color 0.2s, background 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .service-link:active { background: #22200a; border-color: #3a3618; }
+    .service-icon { font-size: 1.6rem; flex-shrink: 0; }
+    .service-info { flex: 1; min-width: 0; }
+    .service-name { font-size: 0.95rem; font-weight: 600; color: #facc15; }
+    .service-desc { font-size: 0.72rem; color: #7a7550; margin-top: 0.15rem; }
+    .service-arrow { color: #3a3618; font-size: 1.2rem; }
+
     @keyframes crabBlast {
       0%   { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(0.3); }
       20%  { opacity: 1; transform: translate(calc(var(--tx)*0.3), calc(var(--ty)*0.3)) rotate(calc(var(--rot)*0.3)) scale(1.2); }
@@ -360,7 +380,7 @@
         <div class="fish-zone"><div class="fish">🐟</div></div>
         <div class="section-title-green">RECENT</div>
         <div id="historyList"></div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
       </div>
     </div>
 
@@ -377,7 +397,7 @@
           <button class="send-btn" id="send">GET TO IT</button>
           <div class="status" id="status"></div>
         </div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
       </div>
     </div>
 
@@ -393,7 +413,7 @@
           <button class="filter-btn" data-filter="queued">Queued</button>
         </div>
         <div id="torrentList"></div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
       </div>
     </div>
 
@@ -407,7 +427,49 @@
           <div class="bug bug-1">🦗</div>
           <div class="bug bug-2">🐜</div>
         </div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
+      </div>
+    </div>
+
+    <!-- page 4: service links -->
+    <div class="panel panel-links scrollable" id="panelLinks">
+      <div class="panel-inner">
+        <div class="bee-zone">
+          <div class="bee bee-0">🐝</div>
+          <div class="bee bee-1">🐝</div>
+        </div>
+        <div class="section-title-yellow">SERVICES</div>
+        <a class="service-link" href="https://jellyfin.office-computer-online-worldwide.org" target="_blank" rel="noopener noreferrer">
+          <div class="service-icon">🎬</div>
+          <div class="service-info"><div class="service-name">Jellyfin</div><div class="service-desc">Media player &amp; library</div></div>
+          <div class="service-arrow">›</div>
+        </a>
+        <a class="service-link" href="https://sonarr.office-computer-online-worldwide.org" target="_blank" rel="noopener noreferrer">
+          <div class="service-icon">📺</div>
+          <div class="service-info"><div class="service-name">Sonarr</div><div class="service-desc">TV show management</div></div>
+          <div class="service-arrow">›</div>
+        </a>
+        <a class="service-link" href="https://radarr.office-computer-online-worldwide.org" target="_blank" rel="noopener noreferrer">
+          <div class="service-icon">🎞️</div>
+          <div class="service-info"><div class="service-name">Radarr</div><div class="service-desc">Movie management</div></div>
+          <div class="service-arrow">›</div>
+        </a>
+        <a class="service-link" href="https://prowlarr.office-computer-online-worldwide.org" target="_blank" rel="noopener noreferrer">
+          <div class="service-icon">🔍</div>
+          <div class="service-info"><div class="service-name">Prowlarr</div><div class="service-desc">Indexer management</div></div>
+          <div class="service-arrow">›</div>
+        </a>
+        <a class="service-link" href="https://qbittorrent.office-computer-online-worldwide.org" target="_blank" rel="noopener noreferrer">
+          <div class="service-icon">⬇️</div>
+          <div class="service-info"><div class="service-name">qBittorrent</div><div class="service-desc">Download client</div></div>
+          <div class="service-arrow">›</div>
+        </a>
+        <a class="service-link" href="https://bazarr.office-computer-online-worldwide.org" target="_blank" rel="noopener noreferrer">
+          <div class="service-icon">💬</div>
+          <div class="service-info"><div class="service-name">Bazarr</div><div class="service-desc">Subtitle management</div></div>
+          <div class="service-arrow">›</div>
+        </a>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
       </div>
     </div>
   </div>
@@ -419,7 +481,7 @@
     const historyList = document.getElementById('historyList');
     const torrentList = document.getElementById('torrentList');
     const allDots = document.querySelectorAll('.dot');
-    const PAGES = 4;
+    const PAGES = 5;
     const statusCards = document.getElementById('statusCards');
 
     // ---- unified touch: swipe + pull-to-refresh ----
@@ -456,8 +518,72 @@
     function onPageLoad(p) {
       if (p === 0) loadHistory();
       else if (p === 2) loadTorrents();
-      else if (p === 3) loadStatus();
-      else location.reload();
+      else if (p === 3) { loadStatus(); spawnBug(); }
+      else if (p === 4) spawnBee();
+    }
+
+    let bugId = 0;
+    function spawnBug() {
+      const zone = document.querySelector('.bug-zone');
+      const emojis = ['🪲', '🦗', '🐜', '🪳', '🐛'];
+      const bug = document.createElement('div');
+      bug.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      bug.className = 'bug';
+      const id = `b${bugId++}`;
+      const dur = 14 + Math.random() * 16;
+      const delay = Math.random() * -dur;
+      const bottom = Math.random() * 50;
+      bug.style.bottom = bottom + 'px';
+
+      // generate 6-8 random waypoints across the zone
+      const stops = 6 + Math.floor(Math.random() * 3);
+      let frames = '';
+      let prevLeft = Math.random() * 90;
+      for (let i = 0; i <= stops; i++) {
+        const pct = Math.round((i / stops) * 100);
+        const left = i === stops ? prevLeft : Math.random() * 92;
+        const dy = (i % 2 === 0) ? 0 : -(1 + Math.random() * 3);
+        const dir = left > prevLeft ? 1 : -1;
+        // occasionally pause (same left as previous)
+        const pause = Math.random() < 0.15 && i > 0 && i < stops;
+        const l = pause ? prevLeft : left;
+        frames += `${pct}% { left:${l}%; transform:scaleX(${dir}) translateY(${dy}px); }\n`;
+        if (!pause) prevLeft = left;
+      }
+
+      const style = document.createElement('style');
+      style.textContent = `@keyframes ${id} { ${frames} }`;
+      document.head.appendChild(style);
+      bug.style.animation = `${id} ${dur}s linear infinite`;
+      bug.style.animationDelay = `${delay}s`;
+      zone.appendChild(bug);
+    }
+
+    // animate the initial 3 bugs
+    document.querySelectorAll('.bug-zone .bug').forEach(b => b.remove());
+    spawnBug(); spawnBug(); spawnBug();
+
+    function spawnBee() {
+      const zone = document.querySelector('.bee-zone');
+      const bee = document.createElement('div');
+      bee.textContent = '🐝';
+      bee.className = 'bee';
+      const dur = 4 + Math.random() * 4;
+      const name = `bonusbee${Date.now()}`;
+      const kf = `
+        @keyframes ${name} {
+          0%   { left:${Math.random()*80}%; top:${Math.random()*60}%; transform:rotate(0deg); }
+          25%  { left:${Math.random()*80}%; top:${Math.random()*60}%; transform:rotate(${(Math.random()-0.5)*20}deg) translateY(-3px); }
+          50%  { left:${Math.random()*80}%; top:${Math.random()*60}%; transform:rotate(${(Math.random()-0.5)*20}deg) translateY(2px); }
+          75%  { left:${Math.random()*80}%; top:${Math.random()*60}%; transform:rotate(${(Math.random()-0.5)*20}deg) translateY(-2px); }
+          100% { left:${Math.random()*80}%; top:${Math.random()*60}%; transform:rotate(0deg); }
+        }
+      `;
+      const style = document.createElement('style');
+      style.textContent = kf;
+      document.head.appendChild(style);
+      bee.style.animation = `${name} ${dur}s ease-in-out infinite`;
+      zone.appendChild(bee);
     }
 
     setPos(-W(), false);
@@ -554,7 +680,7 @@
             ${item.pending
               ? `<div class="history-waiting">Waiting for Movie Bot...</div>`
               : item.result
-                ? `<div class="history-result">${esc(item.result)}</div>`
+                ? `<div class="history-result">${marked.parse(item.result)}</div>`
                 : `<div class="history-pending">No response recorded.</div>`}
           </div>
         `).join('');

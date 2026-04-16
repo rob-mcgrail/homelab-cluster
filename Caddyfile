@@ -19,6 +19,7 @@ prowlarr.{$DOMAIN} {
 }
 
 qbittorrent.{$DOMAIN} {
+	header Cache-Control "no-store, no-cache"
 	reverse_proxy qbittorrent:8080
 }
 
