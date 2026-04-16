@@ -418,15 +418,11 @@
     </div>
 
     <!-- page 3: server status -->
-    <div class="panel panel-status scrollable" id="panelStatus">
+    <div class="panel panel-status scrollable" id="panelStatus" style="position:relative">
+      <div class="bug-zone" id="bugZone"></div>
       <div class="panel-inner">
         <div class="section-title-purple" style="padding-top:1rem">SERVER</div>
         <div id="statusCards"></div>
-        <div class="bug-zone">
-          <div class="bug bug-0">🪲</div>
-          <div class="bug bug-1">🦗</div>
-          <div class="bug bug-2">🐜</div>
-        </div>
         <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
       </div>
     </div>
@@ -522,46 +518,136 @@
       else if (p === 4) spawnBee();
     }
 
-    let bugId = 0;
+    // ---- bug simulation (requestAnimationFrame) ----
+    const bugZoneEl = document.getElementById('bugZone');
+    const bugs = [];
+    const BOUNDS = { xMin: 2, xMax: 92, yMin: 67, yMax: 95 };
+    const STARTLE_R = 5;   // % — triggers dash
+    const REPEL_R = 8;     // % — gentle avoidance
+
     function spawnBug() {
-      const zone = document.querySelector('.bug-zone');
       const emojis = ['🪲', '🦗', '🐜', '🪳', '🐛'];
-      const bug = document.createElement('div');
-      bug.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-      bug.className = 'bug';
-      const id = `b${bugId++}`;
-      const dur = 14 + Math.random() * 16;
-      const delay = Math.random() * -dur;
-      const bottom = Math.random() * 50;
-      bug.style.bottom = bottom + 'px';
+      const el = document.createElement('div');
+      el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      el.className = 'bug';
+      el.style.fontSize = (0.9 + Math.random() * 0.5) + 'rem';
+      el.style.opacity = 0.3 + Math.random() * 0.35;
+      el.style.transition = 'left 0.08s linear, top 0.08s linear';
+      bugZoneEl.appendChild(el);
 
-      // generate 6-8 random waypoints across the zone
-      const stops = 6 + Math.floor(Math.random() * 3);
-      let frames = '';
-      let prevLeft = Math.random() * 90;
-      for (let i = 0; i <= stops; i++) {
-        const pct = Math.round((i / stops) * 100);
-        const left = i === stops ? prevLeft : Math.random() * 92;
-        const dy = (i % 2 === 0) ? 0 : -(1 + Math.random() * 3);
-        const dir = left > prevLeft ? 1 : -1;
-        // occasionally pause (same left as previous)
-        const pause = Math.random() < 0.15 && i > 0 && i < stops;
-        const l = pause ? prevLeft : left;
-        frames += `${pct}% { left:${l}%; transform:scaleX(${dir}) translateY(${dy}px); }\n`;
-        if (!pause) prevLeft = left;
-      }
-
-      const style = document.createElement('style');
-      style.textContent = `@keyframes ${id} { ${frames} }`;
-      document.head.appendChild(style);
-      bug.style.animation = `${id} ${dur}s linear infinite`;
-      bug.style.animationDelay = `${delay}s`;
-      zone.appendChild(bug);
+      const angle = Math.random() * Math.PI * 2;
+      const base = 0.8 + Math.random() * 1.5;
+      bugs.push({
+        el,
+        x: BOUNDS.xMin + Math.random() * (BOUNDS.xMax - BOUNDS.xMin),
+        y: BOUNDS.yMin + Math.random() * (BOUNDS.yMax - BOUNDS.yMin),
+        dir: angle,           // current heading
+        base,                 // characteristic speed (%/s)
+        state: 'scuttle',
+        timer: 0.5 + Math.random() * 2,
+        micro: 0,             // time until next micro-step
+        twitchX: 0,
+        twitchY: 0,
+      });
     }
 
-    // animate the initial 3 bugs
-    document.querySelectorAll('.bug-zone .bug').forEach(b => b.remove());
+    let bugLast = performance.now();
+    function tickBugs(now) {
+      const dt = Math.min((now - bugLast) / 1000, 0.1);
+      bugLast = now;
+
+      for (let i = 0; i < bugs.length; i++) {
+        const b = bugs[i];
+        b.timer -= dt;
+        b.micro -= dt;
+
+        // -- neighbor forces --
+        let repX = 0, repY = 0, nearest = Infinity;
+        for (let j = 0; j < bugs.length; j++) {
+          if (i === j) continue;
+          const dx = b.x - bugs[j].x, dy = b.y - bugs[j].y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < REPEL_R && d > 0.1) {
+            const f = ((REPEL_R - d) / REPEL_R) * 2.5;
+            repX += (dx / d) * f;
+            repY += (dy / d) * f;
+          }
+          if (d < nearest) nearest = d;
+        }
+
+        // -- startle: nearby bug triggers dash --
+        if (nearest < STARTLE_R && b.state !== 'dash') {
+          b.state = 'dash';
+          b.timer = 0.15 + Math.random() * 0.25;
+          b.dir = Math.atan2(repY, repX); // flee direction
+        }
+
+        // -- state machine --
+        switch (b.state) {
+          case 'scuttle':
+            if (b.micro <= 0) {
+              // micro-step: short jump in roughly current direction
+              const wobble = (Math.random() - 0.5) * 1.2;
+              const stepDir = b.dir + wobble;
+              const stepSize = b.base * (0.3 + Math.random() * 0.5);
+              b.x += Math.cos(stepDir) * stepSize + repX * 0.3;
+              b.y += Math.sin(stepDir) * stepSize + repY * 0.3;
+              // occasional direction tweak
+              if (Math.random() < 0.3) b.dir += (Math.random() - 0.5) * 1.5;
+              // next micro-step: random interval for jerkiness
+              b.micro = 0.06 + Math.random() * 0.18;
+            }
+            if (b.timer <= 0) {
+              b.state = 'pause';
+              b.timer = 0.4 + Math.random() * 2.5;
+            }
+            break;
+
+          case 'pause':
+            // tiny twitch while paused
+            if (Math.random() < 0.02) {
+              b.twitchX = (Math.random() - 0.5) * 0.3;
+              b.twitchY = (Math.random() - 0.5) * 0.3;
+            } else {
+              b.twitchX *= 0.9; b.twitchY *= 0.9;
+            }
+            b.x += b.twitchX * dt * 5 + repX * dt * 0.4;
+            b.y += b.twitchY * dt * 5 + repY * dt * 0.4;
+            if (b.timer <= 0) {
+              b.state = 'scuttle';
+              b.timer = 0.5 + Math.random() * 2.5;
+              b.dir += (Math.random() - 0.5) * 2.5; // new-ish heading
+              b.micro = 0;
+            }
+            break;
+
+          case 'dash':
+            // fast smooth burst away
+            const dashSpd = b.base * (4 + Math.random() * 2);
+            b.x += Math.cos(b.dir) * dashSpd * dt + repX * dt;
+            b.y += Math.sin(b.dir) * dashSpd * dt + repY * dt;
+            if (b.timer <= 0) {
+              b.state = 'pause';
+              b.timer = 0.3 + Math.random() * 1;
+            }
+            break;
+        }
+
+        // -- bounce off walls --
+        if (b.x < BOUNDS.xMin) { b.x = BOUNDS.xMin + 0.5; b.dir = Math.PI - b.dir; }
+        if (b.x > BOUNDS.xMax) { b.x = BOUNDS.xMax - 0.5; b.dir = Math.PI - b.dir; }
+        if (b.y < BOUNDS.yMin) { b.y = BOUNDS.yMin + 0.5; b.dir = -b.dir; }
+        if (b.y > BOUNDS.yMax) { b.y = BOUNDS.yMax - 0.5; b.dir = -b.dir; }
+
+        b.el.style.left = b.x + '%';
+        b.el.style.top = b.y + '%';
+      }
+
+      requestAnimationFrame(tickBugs);
+    }
+
     spawnBug(); spawnBug(); spawnBug();
+    requestAnimationFrame(tickBugs);
 
     function spawnBee() {
       const zone = document.querySelector('.bee-zone');
