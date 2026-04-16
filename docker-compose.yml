@@ -163,6 +163,20 @@ services:
       - 8.8.8.8
     restart: unless-stopped
 
+  jellyfin-proxy:
+    image: openresty/openresty:alpine
+    container_name: jellyfin-proxy
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    volumes:
+      - ./openresty/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - jellyfin
+    restart: unless-stopped
+
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:v3.4.6
     container_name: flaresolverr
