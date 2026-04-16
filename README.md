@@ -92,6 +92,8 @@ docker compose up -d
 
 Caddy will automatically obtain HTTPS certificates via DNS-01 challenge on first boot.
 
+> **Note:** The Jellyfin service is configured for Intel QuickSync (QSV) hardware transcoding via `/dev/dri` and the `jellyfin-opencl-intel` Docker mod. If you don't have an Intel iGPU, remove the `devices`, `group_add`, and `DOCKER_MODS` lines from the Jellyfin service in `docker-compose.yml`.
+
 ### 7. Restore service settings
 
 The repo includes exported settings for all services (quality profiles, naming conventions, download clients, etc.). Once the containers are running and `.api_keys` is populated:
