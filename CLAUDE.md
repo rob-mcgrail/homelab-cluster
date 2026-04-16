@@ -47,6 +47,10 @@ Both the disk mount and mergerfs pool are in `/etc/fstab` with `nofail` so the s
 | qBittorrent | 8080 |
 | Bazarr      | 6767 |
 
+## jellyfin-proxy
+
+Openresty sidecar that rewrites `PlaybackInfo` on the `jellyfin-force-transcode.{DOMAIN}` subdomain to force HEVC transcoding for clients whose decoders stutter on real HEVC (Android TV). See `openresty/README.md` for the why, architecture, and gotchas.
+
 ## Jellyfin libraries
 
 | Library     | Type    | Path                   |

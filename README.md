@@ -2,7 +2,7 @@
 
 Docker Compose stack for a home media server with a mobile-first dashboard and an AI-powered movie bot.
 
-**Services:** Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Caddy (reverse proxy), Dashboard (Movie Bot)
+**Services:** Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Caddy (reverse proxy), jellyfin-proxy (HEVC force-transcode shim), Dashboard (Movie Bot)
 
 ## What it does
 
@@ -137,6 +137,7 @@ All services are available via HTTPS at `<service>.yourdomain.org`:
 |---------|-----|
 | Dashboard | `https://www.yourdomain.org` |
 | Jellyfin | `https://jellyfin.yourdomain.org` |
+| Jellyfin (force HEVC transcode) | `https://jellyfin-force-transcode.yourdomain.org` |
 | Sonarr | `https://sonarr.yourdomain.org` |
 | Radarr | `https://radarr.yourdomain.org` |
 | Prowlarr | `https://prowlarr.yourdomain.org` |
@@ -172,6 +173,7 @@ prompt-template.txt     # System prompt for Movie Bot
 run-prompt.sh           # Cron script that runs Claude Code
 dashboard/              # Bun web app (Movie Bot dashboard)
 caddy/                  # Custom Caddy build with Cloudflare DNS plugin
+openresty/              # jellyfin-proxy config (rewrites PlaybackInfo to strip HEVC)
 config/                 # Per-container config volumes (gitignored)
 prompts/                # Prompt queue for Movie Bot (gitignored)
 settings/               # Exported service settings (safe to commit)
