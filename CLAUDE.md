@@ -12,8 +12,8 @@ Follows the [Servarr Docker Guide](https://wiki.servarr.com/docker-guide) path c
 
 ## Storage
 
-Data lives on a USB drive pooled via mergerfs:
-- `/mnt/disk1` — 3.6 TB ext4 USB drive (Seagate Expansion)
+Data lives on one or more USB storage drives pooled via mergerfs:
+- `/mnt/disk1` — ext4 USB drive (add more as `/mnt/disk2`, etc.)
 - `/srv/data` — mergerfs mount pooling `/mnt/disk1` (and future drives)
 - `DATA_ROOT=/srv/data` in `.env` — all containers reference this
 
