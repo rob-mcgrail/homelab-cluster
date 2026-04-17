@@ -1,4 +1,4 @@
-# API keys for media-cluster services
+# API keys for homelab-cluster services
 # Copy this to .api_keys and fill in your values:
 #   cp .api_keys.example .api_keys
 

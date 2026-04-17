@@ -1,4 +1,4 @@
-# media-cluster
+# homelab-cluster
 
 Docker Compose stack for a home media server with a mobile-first dashboard and an AI-powered movie bot.
 
@@ -55,7 +55,7 @@ See `CLAUDE.md` for fstab entries and adding more drives.
 ### 3. Clone and configure
 
 ```sh
-git clone <repo-url> && cd media-cluster
+git clone <repo-url> && cd homelab-cluster
 ```
 
 Create system users and group for the containers:
@@ -99,7 +99,7 @@ Caddy will automatically obtain HTTPS certificates via DNS-01 challenge on first
 The repo includes exported settings for all services (quality profiles, naming conventions, download clients, etc.). Once the containers are running and `.api_keys` is populated:
 
 ```sh
-./restore-settings.sh
+./scripts/restore-settings.sh
 ```
 
 This restores:
@@ -114,7 +114,7 @@ After restoring, you'll need to manually:
 To back up settings after making changes:
 
 ```sh
-./backup-settings.sh
+./scripts/backup-settings.sh
 ```
 
 This exports current settings to `settings/` (secrets are stripped).
@@ -124,7 +124,7 @@ This exports current settings to `settings/` (secrets are stripped).
 Add to your crontab (`crontab -e`):
 
 ```
-* * * * * /path/to/media-cluster/run-prompt.sh
+* * * * * /path/to/homelab-cluster/dashboard/cron/run-prompt.sh
 ```
 
 This checks for new prompts from the dashboard every minute and runs Claude Code to process them.
@@ -169,11 +169,10 @@ Data lives on a drive pool via mergerfs. See `CLAUDE.md` for details on the stor
 .api_keys               # API keys and Cloudflare token (gitignored)
 docker-compose.yml      # All service definitions
 Caddyfile               # Reverse proxy + HTTPS config
-prompt-template.txt     # System prompt for Movie Bot
-run-prompt.sh           # Cron script that runs Claude Code
-dashboard/              # Bun web app (Movie Bot dashboard)
+dashboard/              # Bun web app + cron worker that consumes the prompt queue
 caddy/                  # Custom Caddy build with Cloudflare DNS plugin
 openresty/              # jellyfin-proxy config (rewrites PlaybackInfo to strip HEVC)
+scripts/                # backup/restore-settings shell scripts
 config/                 # Per-container config volumes (gitignored)
 prompts/                # Prompt queue for Movie Bot (gitignored)
 settings/               # Exported service settings (safe to commit)

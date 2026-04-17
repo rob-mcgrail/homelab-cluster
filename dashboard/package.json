@@ -1,5 +1,5 @@
 {
-  "name": "media-cluster-dashboard",
+  "name": "homelab-cluster-dashboard",
   "version": "1.0.0",
   "scripts": {
     "start": "bun run server.ts"

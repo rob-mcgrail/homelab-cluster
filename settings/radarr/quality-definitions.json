@@ -279,7 +279,7 @@
     },
     "title": "HDTV-1080p",
     "weight": 17,
-    "minSize": 10,
+    "minSize": 20,
     "maxSize": 55,
     "preferredSize": 50,
     "id": 19

@@ -1,4 +1,4 @@
-# media-cluster
+# homelab-cluster
 
 Docker Compose stack for a home media server: Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr.
 
@@ -135,7 +135,7 @@ Openresty sidecar that rewrites `PlaybackInfo` on the `jellyfin-force-transcode.
 
 | Profile  | Use for                         | Max (2hr movie) | Notes                        |
 |----------|---------------------------------|-----------------|------------------------------|
-| Rob1080  | TV, kids content, default       | ~18 GB          | 1080p only, HEVC preferred (+10 score) |
+| Rob1080  | TV, kids content, default       | ~18 GB          | Radarr: 1080p only. Sonarr: 720p + 1080p (some shows just aren't available in 1080p). HEVC preferred (+10 score) |
 | Rob4K    | Movies (when disk space allows) | ~34 GB          | 1080p + 4K, no remuxes       |
 
 Both profiles block YTS/YIFY via a `-10000` custom format score.
@@ -144,11 +144,11 @@ When adding new content: use **Rob1080** for all TV shows (Sonarr) and any kids 
 
 ### Size limits (MB/min, per quality definition)
 
-These are Radarr's global quality definitions, shared across profiles:
+Radarr and Sonarr each have their own set of quality definitions. Values below are **Radarr's**:
 
 | Quality        | Min | Preferred | Max |
 |----------------|----:|----------:|----:|
-| HDTV-1080p     |  10 |        50 |  55 |
+| HDTV-1080p     |  20 |        50 |  55 |
 | WEBDL-1080p    |  20 |        50 |  65 |
 | WEBRip-1080p   |  20 |        50 |  90 |
 | Bluray-1080p   |  20 |        60 | 150 |

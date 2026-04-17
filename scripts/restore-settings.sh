@@ -9,8 +9,9 @@ set -euo pipefail
 # to re-enter those in each service's UI after restoring.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SETTINGS_DIR="$SCRIPT_DIR/settings"
-source "$SCRIPT_DIR/.api_keys"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+SETTINGS_DIR="$REPO_ROOT/settings"
+source "$REPO_ROOT/.api_keys"
 
 if [ ! -d "$SETTINGS_DIR" ]; then
     echo "Error: $SETTINGS_DIR not found. Run backup-settings.sh first."

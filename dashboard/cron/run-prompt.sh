@@ -1,11 +1,12 @@
 #!/bin/bash
 # Cron job: picks up prompts from the dashboard and runs Claude Code
-# Add to crontab: * * * * * /path/to/media-cluster/run-prompt.sh
+# Add to crontab: * * * * * /path/to/homelab-cluster/dashboard/cron/run-prompt.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROMPTS_DIR="$SCRIPT_DIR/prompts"
-PROJECT_DIR="$SCRIPT_DIR"
-TEMPLATE="$PROJECT_DIR/prompt-template.txt"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROMPTS_DIR="$REPO_ROOT/prompts"
+PROJECT_DIR="$REPO_ROOT"
+TEMPLATE="$SCRIPT_DIR/prompt-template.txt"
 LOCKFILE="$PROMPTS_DIR/.lock"
 
 # Prevent duplicate runs

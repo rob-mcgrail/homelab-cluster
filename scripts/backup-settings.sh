@@ -6,8 +6,9 @@ set -euo pipefail
 # To restore, use restore-settings.sh.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SETTINGS_DIR="$SCRIPT_DIR/settings"
-source "$SCRIPT_DIR/.api_keys"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+SETTINGS_DIR="$REPO_ROOT/settings"
+source "$REPO_ROOT/.api_keys"
 
 mkdir -p "$SETTINGS_DIR"/{radarr,sonarr,prowlarr,bazarr,qbittorrent,jellyfin}
 
