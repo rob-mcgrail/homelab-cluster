@@ -120,8 +120,26 @@ curl -s -H "X-Api-Key: $SONARR_API_KEY" "$SONARR_URL/api/v3/command/COMMAND_ID" 
 # List all movies
 curl -s -H "X-Api-Key: $RADARR_API_KEY" "$RADARR_URL/api/v3/movie" | python3 -c "import sys,json; [print(f'{m[\"id\"]}: {m[\"title\"]}') for m in json.load(sys.stdin)]"
 
+# List quality profiles (get profile IDs: Rob1080=7, Rob4K=8)
+curl -s -H "X-Api-Key: $RADARR_API_KEY" "$RADARR_URL/api/v3/qualityprofile" | python3 -c "import sys,json; [print(f'{p[\"id\"]}: {p[\"name\"]}') for p in json.load(sys.stdin)]"
+
 # Search for a movie (by movie ID)
 curl -s -X POST -H "X-Api-Key: $RADARR_API_KEY" -H "Content-Type: application/json" "$RADARR_URL/api/v3/command" -d '{"name": "MoviesSearch", "movieIds": [ID]}'
+
+# Bulk change quality profile on multiple movies then trigger upgrade search.
+# NB: this shell is zsh — `for id in $VAR` does NOT word-split, so use an array with "${ARR[@]}".
+# NB: PUT requires the full movie body, not a partial — so GET, mutate, PUT.
+IDS=(49 51 52)   # movie IDs
+PROFILE=8        # Rob4K
+for id in "${IDS[@]}"; do
+  curl -s -H "X-Api-Key: $RADARR_API_KEY" "$RADARR_URL/api/v3/movie/$id" \
+    | python3 -c "import sys,json; m=json.load(sys.stdin); m['qualityProfileId']=$PROFILE; print(json.dumps(m))" \
+    | curl -s -X PUT -H "X-Api-Key: $RADARR_API_KEY" -H "Content-Type: application/json" "$RADARR_URL/api/v3/movie/$id" -d @- \
+    | python3 -c "import sys,json; m=json.load(sys.stdin); print(f'{m[\"id\"]}\tprofile={m[\"qualityProfileId\"]}\t{m[\"title\"]}')"
+done
+# Then one batched search for all:
+IDS_JSON=$(python3 -c "import sys; print('['+','.join(sys.argv[1:])+']')" "${IDS[@]}")
+curl -s -X POST -H "X-Api-Key: $RADARR_API_KEY" -H "Content-Type: application/json" "$RADARR_URL/api/v3/command" -d "{\"name\": \"MoviesSearch\", \"movieIds\": $IDS_JSON}"
 ```
 
 ### Bazarr
