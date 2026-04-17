@@ -890,7 +890,8 @@
     // ---- server status ----
     function fmtBytes(b) {
       if (b < 1073741824) return (b / 1048576).toFixed(0) + ' MB';
-      return (b / 1073741824).toFixed(1) + ' GB';
+      if (b < 1099511627776) return (b / 1073741824).toFixed(1) + ' GB';
+      return (b / 1099511627776).toFixed(2) + ' TB';
     }
 
     function barClass(pct) {

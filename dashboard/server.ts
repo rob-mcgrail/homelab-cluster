@@ -140,12 +140,12 @@ const server = Bun.serve({
           if (sf) swapFree = +sf[1] * 1024;
         } catch {}
 
-        // disk from /hostdata mount
+        // disk from /hostdata mount (bigint avoids int32 overflow on >8.6TB pools)
         let diskTotal = 0, diskFree = 0;
         try {
-          const s = statfsSync("/hostdata");
-          diskTotal = s.blocks * s.bsize;
-          diskFree = s.bavail * s.bsize;
+          const s = statfsSync("/hostdata", { bigint: true });
+          diskTotal = Number(s.blocks * s.bsize);
+          diskFree = Number(s.bavail * s.bsize);
         } catch {}
 
         return Response.json({

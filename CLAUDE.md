@@ -19,6 +19,10 @@ Data lives on one or more USB storage drives pooled via mergerfs:
 
 Both the disk mount and mergerfs pool are in `/etc/fstab` with `nofail` so the system boots even if the USB drive isn't plugged in.
 
+The mergerfs create policy is `category.create=epmfs` (existing path, most free space). For a new file/dir, mergerfs picks the branch that already has the parent path *and* has the most free space. This keeps related files together on the same disk so hardlinks (Sonarr/Radarr import `torrents` → `media`) don't cross filesystems and fall back to copies.
+
+For `epmfs` to actually distribute writes, the top-level paths must exist on every disk. Otherwise mergerfs only has one valid branch and everything lands there.
+
 ### Adding another drive to the pool
 
 1. Identify: `lsblk` to find the new device (e.g. `/dev/sdb`)
@@ -26,8 +30,18 @@ Both the disk mount and mergerfs pool are in `/etc/fstab` with `nofail` so the s
 3. Mount: `sudo mkdir -p /mnt/disk2 && sudo mount /dev/sdb1 /mnt/disk2`
 4. Add to fstab: `UUID=... /mnt/disk2 ext4 defaults,nofail 0 2`
 5. Update mergerfs fstab line to include the new disk: `/mnt/disk1:/mnt/disk2 /srv/data fuse.mergerfs ...`
-6. Remount: `sudo umount /srv/data && sudo mount -a`
-7. No container changes needed — mergerfs pools transparently.
+6. **Create the core folder structure on the new disk** so `epmfs` can place new content there. Match the layout of the existing disks:
+   ```sh
+   sudo mkdir -p /mnt/disk2/media/{tv,movies,music,kids/tv,kids/movies} /mnt/disk2/torrents/{movies,music,tv}
+   sudo chown -R rob:media /mnt/disk2/media /mnt/disk2/torrents
+   sudo chmod -R 775 /mnt/disk2/media /mnt/disk2/torrents
+   ```
+7. Live-add to the running mergerfs pool without downtime (requires `attr` package: `sudo apt install attr`):
+   ```sh
+   sudo setfattr -n user.mergerfs.srcmounts -v "+/mnt/disk2" /srv/data/.mergerfs
+   ```
+   Or, if the stack is down, `sudo umount /srv/data && sudo mount -a`.
+8. No container changes needed — mergerfs pools transparently.
 
 ## Key files
 

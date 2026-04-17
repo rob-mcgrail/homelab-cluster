@@ -47,7 +47,7 @@ sudo mkdir -p /mnt/disk1 /srv/data
 sudo mount /dev/sda1 /mnt/disk1
 
 # Set up mergerfs pool (add to /etc/fstab for persistence)
-sudo mergerfs -o defaults,allow_other,use_ino,cache.files=partial,dropcacheonclose=true,category.create=mfs /mnt/disk1 /srv/data
+sudo mergerfs -o defaults,allow_other,use_ino,cache.files=partial,dropcacheonclose=true,category.create=epmfs /mnt/disk1 /srv/data
 ```
 
 See `CLAUDE.md` for fstab entries and adding more drives.
