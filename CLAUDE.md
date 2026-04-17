@@ -43,6 +43,57 @@ For `epmfs` to actually distribute writes, the top-level paths must exist on eve
    Or, if the stack is down, `sudo umount /srv/data && sudo mount -a`.
 8. No container changes needed — mergerfs pools transparently.
 
+### Auditing hardlinks (torrents ↔ media)
+
+Sonarr/Radarr hardlink imports from `/data/torrents` into `/data/media` so the library and seed share one copy on disk. If a hardlink ever fails (e.g. source and destination land on different mergerfs branches when `epmfs` had no shared parent path), the import falls back to a copy — data sits on disk twice.
+
+To audit and automatically relink copies back into hardlinks:
+
+```python
+# audit: find media files whose size matches a torrent file but whose inode differs
+python3 << 'EOF'
+import os
+from collections import defaultdict
+def walk(root):
+    out = []
+    for dp, _, fns in os.walk(root):
+        for fn in fns:
+            try:
+                st = os.stat(os.path.join(dp, fn))
+                if st.st_size > 50 * 1024 * 1024:
+                    out.append((os.path.join(dp, fn), st.st_ino, st.st_size))
+            except OSError: pass
+    return out
+torrents = walk("/srv/data/torrents")
+media = walk("/srv/data/media")
+tinodes = {f[1] for f in torrents}
+tbysize = defaultdict(list)
+for p, i, s in torrents: tbysize[s].append((p, i))
+copies = []
+for p, i, s in media:
+    if i in tinodes: continue
+    for tp, ti in tbysize.get(s, []):
+        if ti != i:
+            copies.append((p, tp, s)); break
+print(f"copies: {len(copies)}  wasted: {sum(c[2] for c in copies)/1024**3:.1f} GB")
+for m, t, s in copies: print(f"  {s/1024**3:5.2f}GB  {m}\n         <- {t}")
+EOF
+```
+
+To relink a specific batch (replace the `find` path with the torrent folder):
+
+```sh
+for mfile in "/srv/data/media/PATH/TO/MEDIA"/*.mkv; do
+  fname=$(basename "$mfile")
+  tfile=$(find "/srv/data/torrents/TORRENT_FOLDER" -name "$fname" 2>/dev/null | head -1)
+  [ -z "$tfile" ] && continue
+  [ "$(stat -c %i "$mfile")" = "$(stat -c %i "$tfile")" ] && continue
+  rm "$mfile" && ln "$tfile" "$mfile" && echo "relinked: $fname"
+done
+```
+
+Hardlinks only work within a single branch, so both files must physically live on the same disk under `/mnt/diskN`. With `epmfs` + matching top-level folders on every disk this is the default.
+
 ## Key files
 
 - `.env` — all host paths, user/group IDs, timezone. Change `DATA_ROOT` when migrating to a new drive.
