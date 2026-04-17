@@ -132,7 +132,7 @@ Openresty sidecar that rewrites `PlaybackInfo` on the `jellyfin-force-transcode.
 | Rob1080  | TV, kids content, default      | ~10 GB          | 1080p only, HEVC allowed     |
 | Rob4K    | Movies (when disk space allows) | ~36 GB          | 1080p + 4K, no remuxes; 4K preferred=160, max=200 MB/min |
 
-When adding new content: use **Rob1080** for all TV shows (Sonarr) and any kids content. Use **Rob4K** for recent releases, highly cinematic films (Scorsese, Kubrick, PTA, etc.), and anything where the visually quality is worth it. When in doubt for movies, prefer Rob4K.
+When adding new content: use **Rob1080** for all TV shows (Sonarr) and any kids content. Use **Rob4K** for recent releases, highly cinematic films (Scorsese, Kubrick, PTA, etc.), and anything where the visually quality is worth it. When in doubt for movies, prefer Rob1080.
 
 ## Sonarr root folders
 
