@@ -9,3 +9,6 @@ prompts/
 
 # Exported settings are safe to commit
 !settings/
+
+# Recs
+recs.md

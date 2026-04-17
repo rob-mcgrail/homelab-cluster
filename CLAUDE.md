@@ -133,12 +133,39 @@ Openresty sidecar that rewrites `PlaybackInfo` on the `jellyfin-force-transcode.
 
 ## Quality profiles
 
-| Profile  | Use for                        | Max (3hr movie) | Notes                        |
-|----------|--------------------------------|-----------------|------------------------------|
-| Rob1080  | TV, kids content, default      | ~10 GB          | 1080p only, HEVC allowed     |
-| Rob4K    | Movies (when disk space allows) | ~36 GB          | 1080p + 4K, no remuxes; 4K preferred=160, max=200 MB/min |
+| Profile  | Use for                         | Max (2hr movie) | Notes                        |
+|----------|---------------------------------|-----------------|------------------------------|
+| Rob1080  | TV, kids content, default       | ~18 GB          | 1080p only, HEVC preferred (+10 score) |
+| Rob4K    | Movies (when disk space allows) | ~34 GB          | 1080p + 4K, no remuxes       |
 
-When adding new content: use **Rob1080** for all TV shows (Sonarr) and any kids content. Use **Rob4K** for recent releases, highly cinematic films (Scorsese, Kubrick, PTA, etc.), and anything where the visually quality is worth it. When in doubt for movies, prefer Rob1080.
+Both profiles block YTS/YIFY via a `-10000` custom format score.
+
+When adding new content: use **Rob1080** for all TV shows (Sonarr) and any kids content. Use **Rob4K** for recent releases, highly cinematic films (Scorsese, Kubrick, PTA, etc.), and anything where the visual quality is worth it. When in doubt for movies, prefer Rob1080.
+
+### Size limits (MB/min, per quality definition)
+
+These are Radarr's global quality definitions, shared across profiles:
+
+| Quality        | Min | Preferred | Max |
+|----------------|----:|----------:|----:|
+| HDTV-1080p     |  10 |        50 |  55 |
+| WEBDL-1080p    |  20 |        50 |  65 |
+| WEBRip-1080p   |  20 |        50 |  90 |
+| Bluray-1080p   |  20 |        60 | 150 |
+| HDTV-2160p     |   0 |       160 | 200 |
+| WEBDL-2160p    |   0 |       160 | 200 |
+| WEBRip-2160p   |   0 |       160 | 250 |
+| Bluray-2160p   |   0 |       160 | 280 |
+
+Trade-off notes:
+- **Bluray-1080p max=150** is intentionally permissive so OFT/SPARKS-style x264 catalog releases for obscure films still qualify where no x265 alternative exists. Tightening to ~90-100 would bias harder toward x265 (SARTRE, r00t, BONE, SM737) but would miss some OFT-only titles.
+- **min=20** on 1080p tiers auto-rejects YIFY-sized releases (~8-16 MB/min) even before the custom-format penalty hits.
+
+### Release group notes
+
+- **OFT** — "catalog completer" group. x264 1080p BluRay rips, often the only 1080p option for obscure arthouse/cult/older titles. Quality fine, aspect ratios preserved, single audio track typical. Expected and welcome in this library.
+- **SARTRE, r00t, BONE, SM737, HazMatt, DarkAngie (Tigole-family), TheUpscaler** — x265 HEVC encoders, preferred when available (Rob1080's +10 HEVC score nudges toward these).
+- **YTS/YIFY** — blocked. Bitrates too low, transcoding tends to look bad.
 
 ## Sonarr root folders
 
