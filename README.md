@@ -160,6 +160,19 @@ Devices pick up the new DNS on their next DHCP renewal. Toggle Wi-Fi on a client
 
 Existing devices keep their old leases until they expire (up to 24h) — toggling Wi-Fi on each device forces a faster transition.
 
+**The server itself is both the DHCP server and a DHCP client** (Pi-hole runs here, but the host also needs an IP + DNS from somewhere). That creates a chicken-and-egg at boot: networkd brings up `eno1` and starts DHCP before Docker/Pi-hole is up to answer. Two pieces keep this clean:
+
+1. **Infinite-lease reservation for the server's own MAC** in Pi-hole's static DHCP leases (`HW,IP,HOSTNAME,infinite`). Once the host has received this lease once, networkd caches `LIFETIME=infinite` and uses the IP immediately on every subsequent boot without needing a DHCP exchange — so Pi-hole doesn't have to be up early for the host to get an IP.
+
+2. **systemd-resolved `FallbackDNS`** as a boot-window safety net — drop-in at `/etc/systemd/resolved.conf.d/10-fallback.conf`:
+   ```
+   [Resolve]
+   FallbackDNS=1.1.1.1 1.0.0.1
+   ```
+   `FallbackDNS` only kicks in when the host has no DNS servers configured at all (early boot, before Pi-hole has bound `:53`). Once DHCP populates link DNS with Pi-hole, `FallbackDNS` is ignored — so ad/tracker blocking is fully preserved at steady state. It does *not* fall through on timeouts or NXDOMAIN; blocked domains stay blocked.
+
+One caveat: if Pi-hole crashes mid-session after DHCP has already populated link DNS, the host's DNS goes with it — `FallbackDNS` does not help here because the link DNS list isn't empty, just unresponsive. For that case, restart the Pi-hole container.
+
 **Recovery if Pi-hole dies** and DNS goes out for the whole LAN: set router DNS back to a public resolver (`1.1.1.1`) at the router admin page. Takes ~30 seconds, buys time to debug.
 
 ## Accessing services
