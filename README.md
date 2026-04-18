@@ -126,11 +126,11 @@ Add to your crontab (`crontab -e`):
 
 ```
 * * * * * /path/to/homelab-cluster/movie-bot-requests/run-prompt.sh
-0 */2 * * * /path/to/homelab-cluster/movie-bot-download-triage/run-triage.sh
+0 */4 * * * /path/to/homelab-cluster/movie-bot-download-triage/run-triage.sh
 ```
 
 - **`run-prompt.sh`** — every minute, picks up new user prompts from the dashboard queue and runs Claude Code to process them.
-- **`run-triage.sh`** — every 2 hours, reviews the qBittorrent queue and recent user requests: pauses + re-searches early-stalled torrents, parks mostly-done stalls and retries them after 12h, and priority-boosts fresh small-batch requests. See `movie-bot-download-triage/triage-prompt.txt` for the full decision framework.
+- **`run-triage.sh`** — every 4 hours, reviews the qBittorrent queue and recent user requests: pauses + re-searches early-stalled torrents, parks mostly-done stalls and retries them after 12h, auto-retires torrents that have been stuck for >7 days (removes + blocklists dead release, triggers fresh search), and priority-boosts fresh small-batch requests. See `movie-bot-download-triage/triage-prompt.txt` for the full decision framework.
 
 ### 9. Pi-hole (optional but recommended)
 

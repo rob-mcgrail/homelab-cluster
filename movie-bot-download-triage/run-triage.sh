@@ -1,6 +1,6 @@
 #!/bin/bash
 # Cron job: periodic torrent queue triage.
-# Add to crontab: 0 */2 * * * /path/to/homelab-cluster/movie-bot-download-triage/run-triage.sh
+# Add to crontab: 0 */4 * * * /path/to/homelab-cluster/movie-bot-download-triage/run-triage.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

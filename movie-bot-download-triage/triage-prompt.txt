@@ -38,22 +38,41 @@ For a torrent that is:
 - 50-95% progress AND
 - has been stuck for > 24h (no meaningful download speed, few/no seeds)
 
-→ Pause it in qBit and tag it "triage-paused:<unix_epoch_now>". Do NOT
-  trigger a new search — we want to preserve what's on disk and give
-  this specific release another chance later. A new release would make
-  the partial file useless.
+→ Pause it in qBit, tag it "triage-paused:<unix_epoch_now>", and also
+  add "triage-first-parked:<unix_epoch_now>" if it isn't already present
+  (this tag is never removed — it marks the start of this torrent's
+  struggle and enables the escalation check below). Do NOT trigger a
+  new search — we want to preserve what's on disk and give this
+  specific release another chance later.
 
 ### Retry paused mostly-done torrents
-For any torrent currently in a paused state with the tag
-"triage-paused:<epoch>":
+For any torrent currently paused with the tag "triage-paused:<epoch>":
 - If epoch is > 12h in the past → resume it, remove that tag, and add
   "triage-retry:<unix_epoch_now>". Give it a 12h window to finish.
 - If it already has "triage-retry:<epoch>" > 12h in the past AND is
   still not progressing → pause again with a fresh
   "triage-paused:<unix_epoch_now>" tag (starts the cycle over).
 
-This lets a torrent rotate between "try" and "rest" states until it
-either finishes or the user intervenes manually.
+This lets a torrent rotate between "try" and "rest" states.
+
+### Escalate long-stuck high-progress torrents (remove + re-search)
+Some torrents stall at 80-95% for weeks with no realistic chance of
+finishing. The park/retry cycle should get a full week of chances
+first. For any torrent with a "triage-first-parked:<epoch>" tag
+where:
+- epoch is > 7 days in the past AND
+- progress is still < 95% (i.e., it genuinely hasn't advanced)
+
+→ Remove it via the owning arr's queue API:
+  Radarr: DELETE /api/v3/queue/{id}?removeFromClient=true&blocklist=true&skipRedownload=false
+  Sonarr: DELETE /api/v3/queue/{id}?removeFromClient=true&blocklist=true&skipRedownload=false
+  This removes the incomplete torrent + its partial files in
+  /data/torrents, blocklists this specific release (it couldn't find
+  seeders in a full week so it's effectively dead), then the arr
+  triggers a fresh search which will prefer a different release.
+
+  Cap escalation at 2 torrents per run (separate from the early-stall
+  cap).
 
 ### Priority boost for fresh small-batch requests
 For each matching recent prompt: find the corresponding torrents in qBit
@@ -70,12 +89,12 @@ don't meddle.
 ## Hard limits — never violate
 
 - Do NOT act on torrents fresher than 6 hours. Let them try.
-- Do NOT pause/remove torrents > 70% complete. Sunk cost + very likely
-  to finish eventually.
-- Do NOT act on more than 3 stalled-removals per run (safety cap). If
-  you see more, report them but pause only the worst 3.
-- Do NOT delete files on disk. Pausing + re-searching is as invasive
-  as you get.
+- Do NOT act on more than 3 early-stall removals per run (safety cap).
+  If you see more, report them but pause only the worst 3.
+- Do NOT act on more than 2 escalation removals per run.
+- Do NOT delete files in /data/media/. Arr queue API removals only
+  touch /data/torrents partial files, which is safe — the media
+  library is never affected.
 - Do NOT modify quality profiles, root folders, download client
   settings, or any arr configuration.
 - Do NOT touch docker-compose.yml, .env, Caddyfile, or any service
@@ -83,42 +102,50 @@ don't meddle.
 
 ## Output
 
-Write a markdown report to stdout with this structure:
+Output the report as RAW markdown straight to stdout. Do NOT wrap it
+in a code fence (no leading or trailing ```). No preamble, no
+"Writing report…" chatter. No tables — they render poorly on mobile.
+Use bulleted lists with bold titles.
 
-```
-# Triage run — <ISO-8601 UTC timestamp>
+The structure:
 
-**Reviewed:** N torrents · M recent prompts
+  # Triage run — <ISO-8601 UTC timestamp>
 
-## Actions taken
+  **Reviewed:** N torrents · M recent prompts
 
-| Title | Action | Reason |
-|-------|--------|--------|
-| ... | paused + re-searched | <5% after 28h, 0 seeds |
-| ... | priority-boosted | from prompt 1776509263048 (2 films, 3h ago) |
-| ... | resumed after rest | paused 14h ago at 62% |
+  ## Actions taken
 
-## Considered but rejected
+  - **<title>** — <action>: <terse reason with concrete numbers>
+  - **<title>** — <action>: <reason>
 
-| Title | Considered action | Why skipped |
-|-------|-------------------|-------------|
-| ... | pause | within 6h grace |
+  Valid actions: "paused + re-searched", "parked (mostly-done)",
+  "resumed after rest", "re-paused after retry",
+  "escalated — removed + re-searched", "priority-boosted".
 
-## Anomalies
+  Reason examples:
+  - `<5% after 28h, 0 seeds`
+  - `prompt 1776509263048 (2 films, 3h ago)`
+  - `paused 14h ago at 62%`
 
-- ...
+  ## Considered but rejected
 
-## Summary
+  - **<title>** — <considered action>: <why skipped>
 
-- Paused + re-searched: N
-- Priority-boosted: N
-- Resumed from rest: N
-- Re-paused after retry: N
-```
+  ## Anomalies
 
-If a section has no rows, write "_none_" instead of an empty table.
-Keep reasoning terse — one line per cell. A human reads this only if
-something looks off.
+  - Free-form bullets for anything worth a human eye.
+
+  ## Summary
+
+  - Paused + re-searched: N
+  - Parked: N
+  - Priority-boosted: N
+  - Resumed from rest: N
+  - Re-paused after retry: N
+  - Escalated (removed): N
+
+If a section has no items, write "_none_" on a line by itself.
+Keep reasoning terse — one line per bullet.
 
 ## One-shot
 

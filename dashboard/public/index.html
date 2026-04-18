@@ -260,33 +260,56 @@
     /* ---- triage (orange) — newest triage run at top of history ---- */
     .triage-item {
       background: #1a0d05; border: 1px solid #5c3510; border-radius: 14px;
-      padding: 1rem; margin-bottom: 0.75rem;
+      padding: 0.9rem; margin-bottom: 0.75rem;
     }
     .triage-label {
-      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em;
       color: #fb923c; margin-bottom: 0.5rem; text-transform: uppercase;
     }
     .triage-result { font-size: 0.78rem; color: #fdba74; line-height: 1.5; }
-    .triage-result p { margin: 0.4rem 0; }
-    .triage-result h1, .triage-result h2, .triage-result h3 {
-      font-size: 0.85rem; color: #fb923c; margin: 0.7rem 0 0.3rem; font-weight: 600;
+    .triage-result > *:first-child { margin-top: 0; }
+    .triage-result > *:last-child  { margin-bottom: 0; }
+    .triage-result p { margin: 0.35rem 0; }
+    .triage-result h1 {
+      font-size: 0.95rem; color: #fb923c; margin: 0 0 0.5rem; font-weight: 700;
     }
-    .triage-result ul, .triage-result ol { padding-left: 1.2rem; margin: 0.3rem 0; }
-    .triage-result li { margin: 0.15rem 0; }
+    .triage-result h2 {
+      font-size: 0.82rem; color: #fb923c; margin: 0.85rem 0 0.25rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .triage-result h3 {
+      font-size: 0.78rem; color: #fdba74; margin: 0.6rem 0 0.2rem; font-weight: 600;
+    }
+    .triage-result ul, .triage-result ol { padding-left: 1.1rem; margin: 0.25rem 0; }
+    .triage-result li { margin: 0.12rem 0; }
     .triage-result strong { color: #fed7aa; }
     .triage-result code {
-      background: #2a1505; padding: 0.1rem 0.3rem; border-radius: 4px;
-      font-size: 0.72rem; font-family: 'SF Mono', 'Fira Code', monospace; color: #fdba74;
+      background: #2a1505; padding: 0.08rem 0.28rem; border-radius: 4px;
+      font-size: 0.7rem; font-family: 'SF Mono', 'Fira Code', monospace; color: #fed7aa;
     }
+    .triage-result em { color: #9a5820; font-style: italic; }
+
+    /* Table scrolls horizontally inside its own wrapper so long rows don't squeeze cells */
+    .triage-result .tbl-wrap {
+      overflow-x: auto; margin: 0.4rem -0.3rem; padding: 0 0.3rem;
+      scrollbar-width: thin; scrollbar-color: #5c3510 transparent;
+    }
+    .triage-result .tbl-wrap::-webkit-scrollbar { height: 4px; }
+    .triage-result .tbl-wrap::-webkit-scrollbar-thumb { background: #5c3510; border-radius: 2px; }
     .triage-result table {
-      width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.72rem;
+      width: auto; min-width: 100%; border-collapse: collapse;
+      font-size: 0.72rem;
     }
     .triage-result th, .triage-result td {
-      text-align: left; padding: 0.3rem 0.4rem; border-bottom: 1px solid #3a2510;
-      vertical-align: top;
+      text-align: left; padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid #3a2510; vertical-align: top;
+      white-space: nowrap;
     }
-    .triage-result th { color: #fb923c; font-weight: 600; }
-    .triage-result em { color: #9a5820; font-style: italic; }
+    .triage-result td:last-child { white-space: normal; min-width: 14rem; }
+    .triage-result th {
+      color: #fb923c; font-weight: 600; text-transform: uppercase;
+      font-size: 0.65rem; letter-spacing: 0.05em;
+    }
 
     /* ---- torrents (neon blue) ---- */
     .panel-torrents { background: #06080e; }
@@ -989,6 +1012,20 @@
 
     window.addEventListener('resize', () => setPos(-page * W(), false));
 
+    // Defensive renderer for triage reports — strips any accidental outer code
+    // fence + preamble chatter that claude sometimes emits, and wraps <table>s
+    // in scroll containers for mobile.
+    function renderTriageMd(md) {
+      let clean = md.trim();
+      // If content sits inside a single wrapping ``` block (optionally preceded
+      // by a one-line preamble), extract the inner markdown.
+      const fence = clean.match(/^(?:[^\n]*\n+)?```[a-z]*\n([\s\S]*?)\n```\s*$/i);
+      if (fence) clean = fence[1];
+      const html = marked.parse(clean);
+      return html.replace(/<table>/g, '<div class="tbl-wrap"><table>')
+                 .replace(/<\/table>/g, '</table></div>');
+    }
+
     // ---- history ----
     async function loadHistory() {
       try {
@@ -1002,7 +1039,7 @@
         const triageHtml = triage && triage.content
           ? `<div class="triage-item">
               <div class="triage-label">Latest triage run</div>
-              <div class="triage-result">${marked.parse(triage.content)}</div>
+              <div class="triage-result">${renderTriageMd(triage.content)}</div>
             </div>`
           : '';
 
