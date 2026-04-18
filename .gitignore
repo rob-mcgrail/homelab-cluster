@@ -4,8 +4,14 @@ config/
 # API keys for service access
 .api_keys
 
-# User prompts from dashboard (runtime data)
-prompts/
+# Movie Bot runtime data (inbox, completed requests, completed triage runs)
+movie-bot-data/pending/*
+!movie-bot-data/pending/.gitkeep
+movie-bot-data/completed-requests/*
+!movie-bot-data/completed-requests/.gitkeep
+movie-bot-data/completed-triage-runs/*
+!movie-bot-data/completed-triage-runs/.gitkeep
+movie-bot-data/.*.lock
 
 # Exported settings are safe to commit
 !settings/

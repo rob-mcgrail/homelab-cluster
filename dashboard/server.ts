@@ -2,7 +2,10 @@ import { readdir, readFile } from "node:fs/promises";
 import { loadavg, totalmem, freemem, cpus } from "node:os";
 import { statfsSync } from "node:fs";
 
-const PROMPTS_DIR = "/prompts";
+const DATA_DIR = "/movie-bot-data";
+const PENDING_DIR = `${DATA_DIR}/pending`;
+const COMPLETED_REQUESTS_DIR = `${DATA_DIR}/completed-requests`;
+const COMPLETED_TRIAGE_DIR = `${DATA_DIR}/completed-triage-runs`;
 const QB_URL = "http://qbittorrent:8080";
 const JELLYFIN_URL = "http://jellyfin:8096";
 const PIHOLE_URL = "http://host.docker.internal:7001";
@@ -99,7 +102,7 @@ const server = Bun.serve({
     if (req.method === "GET" && url.pathname === "/api/history") {
       try {
         // pending prompts (not yet processed)
-        const pendingFiles = (await readdir(PROMPTS_DIR))
+        const pendingFiles = (await readdir(PENDING_DIR))
           .filter((f) => f.endsWith(".txt"))
           .sort()
           .reverse();
@@ -107,16 +110,15 @@ const server = Bun.serve({
         const pending = await Promise.all(
           pendingFiles.map(async (f) => {
             const base = f.replace(/\.txt$/, "");
-            const prompt = await Bun.file(`${PROMPTS_DIR}/${f}`).text();
+            const prompt = await Bun.file(`${PENDING_DIR}/${f}`).text();
             return { id: base, prompt, result: null, pending: true };
           })
         );
 
         // completed prompts
-        const doneDir = `${PROMPTS_DIR}/done`;
         let done: any[] = [];
         try {
-          const doneFiles = (await readdir(doneDir))
+          const doneFiles = (await readdir(COMPLETED_REQUESTS_DIR))
             .filter((f) => f.endsWith(".txt"))
             .sort()
             .reverse();
@@ -124,8 +126,8 @@ const server = Bun.serve({
           done = await Promise.all(
             doneFiles.map(async (f) => {
               const base = f.replace(/\.txt$/, "");
-              const prompt = await Bun.file(`${doneDir}/${f}`).text();
-              const outFile = Bun.file(`${doneDir}/${base}.out`);
+              const prompt = await Bun.file(`${COMPLETED_REQUESTS_DIR}/${f}`).text();
+              const outFile = Bun.file(`${COMPLETED_REQUESTS_DIR}/${base}.out`);
               const result = (await outFile.exists())
                 ? await outFile.text()
                 : null;
@@ -138,6 +140,21 @@ const server = Bun.serve({
         return Response.json(all);
       } catch {
         return Response.json([]);
+      }
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/triage-latest") {
+      try {
+        const files = (await readdir(COMPLETED_TRIAGE_DIR))
+          .filter((f) => f.endsWith(".md"))
+          .sort()
+          .reverse();
+        if (!files.length) return Response.json(null);
+        const latest = files[0];
+        const content = await Bun.file(`${COMPLETED_TRIAGE_DIR}/${latest}`).text();
+        return Response.json({ id: latest.replace(/\.md$/, ""), content });
+      } catch {
+        return Response.json(null);
       }
     }
 
@@ -333,7 +350,7 @@ const server = Bun.serve({
         if (!prompt) return new Response("No prompt provided", { status: 400 });
 
         const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        await Bun.write(`${PROMPTS_DIR}/${id}.txt`, prompt);
+        await Bun.write(`${PENDING_DIR}/${id}.txt`, prompt);
 
         return Response.json({ ok: true, id });
       } catch {

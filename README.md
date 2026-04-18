@@ -125,10 +125,12 @@ This exports current settings to `settings/` (secrets are stripped).
 Add to your crontab (`crontab -e`):
 
 ```
-* * * * * /path/to/homelab-cluster/dashboard/cron/run-prompt.sh
+* * * * * /path/to/homelab-cluster/movie-bot-requests/run-prompt.sh
+0 */2 * * * /path/to/homelab-cluster/movie-bot-download-triage/run-triage.sh
 ```
 
-This checks for new prompts from the dashboard every minute and runs Claude Code to process them.
+- **`run-prompt.sh`** — every minute, picks up new user prompts from the dashboard queue and runs Claude Code to process them.
+- **`run-triage.sh`** — every 2 hours, reviews the qBittorrent queue and recent user requests: pauses + re-searches early-stalled torrents, parks mostly-done stalls and retries them after 12h, and priority-boosts fresh small-batch requests. See `movie-bot-download-triage/triage-prompt.txt` for the full decision framework.
 
 ### 9. Pi-hole (optional but recommended)
 
@@ -218,11 +220,16 @@ Data lives on a drive pool via mergerfs. See `CLAUDE.md` for details on the stor
 .api_keys               # API keys and Cloudflare token (gitignored)
 docker-compose.yml      # All service definitions
 Caddyfile               # Reverse proxy + HTTPS config
-dashboard/              # Bun web app + cron worker that consumes the prompt queue
+dashboard/              # Bun web app — the Movie Bot UI
+movie-bot-requests/     # Cron worker that consumes the prompt queue (runs every minute)
+movie-bot-download-triage/ # Cron worker that triages the qBit queue + promotes fresh requests (every 2h)
+movie-bot-data/         # Movie Bot runtime state (gitignored contents)
+  pending/              #   inbox: dashboard drops new .txt prompts here; cron consumes
+  completed-requests/   #   archive: processed .txt + .out pairs
+  completed-triage-runs/#   markdown reports from the triage cron
 caddy/                  # Custom Caddy build with Cloudflare DNS plugin
 openresty/              # jellyfin-proxy config (rewrites PlaybackInfo to strip HEVC)
 scripts/                # backup/restore-settings shell scripts
 config/                 # Per-container config volumes (gitignored)
-prompts/                # Prompt queue for Movie Bot (gitignored)
 settings/               # Exported service settings (safe to commit)
 ```

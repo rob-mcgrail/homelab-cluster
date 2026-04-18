@@ -257,6 +257,37 @@
     .history-item.pending .history-prompt { color: #c084fc; }
     .history-waiting { font-size: 0.8rem; color: #8b6adf; font-style: italic; }
 
+    /* ---- triage (orange) — newest triage run at top of history ---- */
+    .triage-item {
+      background: #1a0d05; border: 1px solid #5c3510; border-radius: 14px;
+      padding: 1rem; margin-bottom: 0.75rem;
+    }
+    .triage-label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
+      color: #fb923c; margin-bottom: 0.5rem; text-transform: uppercase;
+    }
+    .triage-result { font-size: 0.78rem; color: #fdba74; line-height: 1.5; }
+    .triage-result p { margin: 0.4rem 0; }
+    .triage-result h1, .triage-result h2, .triage-result h3 {
+      font-size: 0.85rem; color: #fb923c; margin: 0.7rem 0 0.3rem; font-weight: 600;
+    }
+    .triage-result ul, .triage-result ol { padding-left: 1.2rem; margin: 0.3rem 0; }
+    .triage-result li { margin: 0.15rem 0; }
+    .triage-result strong { color: #fed7aa; }
+    .triage-result code {
+      background: #2a1505; padding: 0.1rem 0.3rem; border-radius: 4px;
+      font-size: 0.72rem; font-family: 'SF Mono', 'Fira Code', monospace; color: #fdba74;
+    }
+    .triage-result table {
+      width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.72rem;
+    }
+    .triage-result th, .triage-result td {
+      text-align: left; padding: 0.3rem 0.4rem; border-bottom: 1px solid #3a2510;
+      vertical-align: top;
+    }
+    .triage-result th { color: #fb923c; font-weight: 600; }
+    .triage-result em { color: #9a5820; font-style: italic; }
+
     /* ---- torrents (neon blue) ---- */
     .panel-torrents { background: #06080e; }
     .octo-zone { height: 90px; position: relative; overflow: hidden; flex-shrink: 0; }
@@ -961,13 +992,26 @@
     // ---- history ----
     async function loadHistory() {
       try {
-        const res = await fetch('/api/history');
-        const items = await res.json();
-        if (!items.length) {
+        const [histRes, triageRes] = await Promise.all([
+          fetch('/api/history'),
+          fetch('/api/triage-latest'),
+        ]);
+        const items = await histRes.json();
+        const triage = await triageRes.json();
+
+        const triageHtml = triage && triage.content
+          ? `<div class="triage-item">
+              <div class="triage-label">Latest triage run</div>
+              <div class="triage-result">${marked.parse(triage.content)}</div>
+            </div>`
+          : '';
+
+        if (!items.length && !triageHtml) {
           historyList.innerHTML = '<div class="history-empty">No prompts yet.</div>';
           return;
         }
-        historyList.innerHTML = items.map(item => `
+
+        const historyHtml = items.map(item => `
           <div class="history-item${item.pending ? ' pending' : ''}">
             <div class="history-prompt">${esc(item.prompt)}</div>
             ${item.pending
@@ -977,6 +1021,8 @@
                 : `<div class="history-pending">No response recorded.</div>`}
           </div>
         `).join('');
+
+        historyList.innerHTML = triageHtml + historyHtml;
       } catch {
         historyList.innerHTML = '<div class="history-empty">Could not load history.</div>';
       }

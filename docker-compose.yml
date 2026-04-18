@@ -139,7 +139,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./prompts:/prompts
+      - ./movie-bot-data:/movie-bot-data
       - ./dashboard/public:/app/public
       - ${DATA_ROOT}:/hostdata:ro
       - ${CONFIG_ROOT}/pihole/etc-pihole/dhcp.leases:/pihole/dhcp.leases:ro
