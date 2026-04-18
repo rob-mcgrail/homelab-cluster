@@ -1188,11 +1188,11 @@
           const blockedFrac = c.total > 0 ? c.blocked / c.total : 0;
           const blockedWidth = totalPct * blockedFrac;
           const allowedWidth = totalPct - blockedWidth;
-          const name = c.name && c.name !== c.ip ? c.name : c.ip;
+          const displayName = c.name && c.name !== c.ip ? c.name.replace(/\.lan$/i, '') : c.ip;
           const ipBadge = (c.name && c.name !== c.ip) ? `<span class="client-ip">${esc(c.ip)}</span>` : '';
           return `
             <div class="client-card">
-              <div><span class="client-name">${esc(name)}</span>${ipBadge}</div>
+              <div><span class="client-name">${esc(displayName)}</span>${ipBadge}</div>
               <div class="client-counts">
                 <span><span class="allowed">${c.permitted.toLocaleString()}</span> allowed</span>
                 <span><span class="blocked">${c.blocked.toLocaleString()}</span> blocked</span>
