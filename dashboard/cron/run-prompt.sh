@@ -27,8 +27,9 @@ for f in "$PROMPTS_DIR"/*.txt; do
     base=$(basename "$f" .txt)
     user_prompt=$(cat "$f")
 
-    # Build the full prompt from template
-    full_prompt=$(sed "s|{{PROMPT}}|$user_prompt|" "$TEMPLATE")
+    # Build the full prompt from template (parameter expansion handles multi-line user prompts safely)
+    full_prompt=$(<"$TEMPLATE")
+    full_prompt="${full_prompt//\{\{PROMPT\}\}/$user_prompt}"
 
     # Run Claude Code
     cd "$PROJECT_DIR" && "$CLAUDE" --dangerously-skip-permissions -p "$full_prompt" \
