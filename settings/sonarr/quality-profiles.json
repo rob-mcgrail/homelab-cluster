@@ -258,6 +258,11 @@
     "minUpgradeFormatScore": 1,
     "formatItems": [
       {
+        "format": 2,
+        "name": "YTS/YIFY",
+        "score": 0
+      },
+      {
         "format": 1,
         "name": "HEVC",
         "score": 0
@@ -523,6 +528,11 @@
     "cutoffFormatScore": 0,
     "minUpgradeFormatScore": 1,
     "formatItems": [
+      {
+        "format": 2,
+        "name": "YTS/YIFY",
+        "score": 0
+      },
       {
         "format": 1,
         "name": "HEVC",
@@ -790,6 +800,11 @@
     "minUpgradeFormatScore": 1,
     "formatItems": [
       {
+        "format": 2,
+        "name": "YTS/YIFY",
+        "score": 0
+      },
+      {
         "format": 1,
         "name": "HEVC",
         "score": 0
@@ -1055,6 +1070,11 @@
     "cutoffFormatScore": 0,
     "minUpgradeFormatScore": 1,
     "formatItems": [
+      {
+        "format": 2,
+        "name": "YTS/YIFY",
+        "score": 0
+      },
       {
         "format": 1,
         "name": "HEVC",
@@ -1322,6 +1342,11 @@
     "minUpgradeFormatScore": 1,
     "formatItems": [
       {
+        "format": 2,
+        "name": "YTS/YIFY",
+        "score": 0
+      },
+      {
         "format": 1,
         "name": "HEVC",
         "score": 0
@@ -1588,6 +1613,11 @@
     "minUpgradeFormatScore": 1,
     "formatItems": [
       {
+        "format": 2,
+        "name": "YTS/YIFY",
+        "score": 0
+      },
+      {
         "format": 1,
         "name": "HEVC",
         "score": 0
@@ -1685,7 +1715,7 @@
           "resolution": 720
         },
         "items": [],
-        "allowed": false
+        "allowed": true
       },
       {
         "quality": {
@@ -1718,7 +1748,7 @@
               "resolution": 720
             },
             "items": [],
-            "allowed": false
+            "allowed": true
           },
           {
             "quality": {
@@ -1728,10 +1758,10 @@
               "resolution": 720
             },
             "items": [],
-            "allowed": false
+            "allowed": true
           }
         ],
-        "allowed": false,
+        "allowed": true,
         "id": 1001
       },
       {
@@ -1742,7 +1772,7 @@
           "resolution": 720
         },
         "items": [],
-        "allowed": false
+        "allowed": true
       },
       {
         "name": "WEB 1080p",
@@ -1853,6 +1883,11 @@
     "cutoffFormatScore": 0,
     "minUpgradeFormatScore": 1,
     "formatItems": [
+      {
+        "format": 2,
+        "name": "YTS/YIFY",
+        "score": -10000
+      },
       {
         "format": 1,
         "name": "HEVC",

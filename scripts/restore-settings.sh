@@ -98,6 +98,44 @@ for cat_name in $(jq -r 'keys[]' "$SETTINGS_DIR/qbittorrent/categories.json"); d
 done
 echo "    categories: restored"
 
+echo "==> Pi-hole"
+PIHOLE_SID=$(curl -s -X POST "$PIHOLE_URL/api/auth" \
+    -H "Content-Type: application/json" \
+    -d "{\"password\":\"$FTLCONF_webserver_api_password\"}" \
+    | jq -r '.session.sid // empty')
+if [ -n "$PIHOLE_SID" ]; then
+    if [ -f "$SETTINGS_DIR/pihole/adlists.json" ]; then
+        jq -c '.[]' "$SETTINGS_DIR/pihole/adlists.json" | while read -r adlist; do
+            name=$(echo "$adlist" | jq -r '.address')
+            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                -H "X-FTL-SID: $PIHOLE_SID" -H "Content-Type: application/json" \
+                -d "$adlist" "$PIHOLE_URL/api/lists")
+            echo "    adlist '$name': $code"
+        done
+    fi
+    if [ -f "$SETTINGS_DIR/pihole/dhcp-hosts.json" ]; then
+        hosts=$(cat "$SETTINGS_DIR/pihole/dhcp-hosts.json")
+        curl -s -o /dev/null -X PATCH \
+            -H "X-FTL-SID: $PIHOLE_SID" -H "Content-Type: application/json" \
+            -d "{\"config\":{\"dhcp\":{\"hosts\":$hosts}}}" \
+            "$PIHOLE_URL/api/config"
+        echo "    dhcp-hosts: restored"
+    fi
+    if [ -f "$SETTINGS_DIR/pihole/dns-upstreams.json" ]; then
+        upstreams=$(cat "$SETTINGS_DIR/pihole/dns-upstreams.json")
+        curl -s -o /dev/null -X PATCH \
+            -H "X-FTL-SID: $PIHOLE_SID" -H "Content-Type: application/json" \
+            -d "{\"config\":{\"dns\":{\"upstreams\":$upstreams}}}" \
+            "$PIHOLE_URL/api/config"
+        echo "    dns-upstreams: restored"
+    fi
+    curl -s -o /dev/null -X POST -H "X-FTL-SID: $PIHOLE_SID" "$PIHOLE_URL/api/action/gravity"
+    echo "    gravity: updated"
+    curl -s -X DELETE -H "X-FTL-SID: $PIHOLE_SID" "$PIHOLE_URL/api/auth" > /dev/null
+else
+    echo "    skipped (auth failed — is Pi-hole reachable at $PIHOLE_URL?)"
+fi
+
 echo ""
 echo "Done! Settings restored."
 echo ""

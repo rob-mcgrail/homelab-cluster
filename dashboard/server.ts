@@ -4,6 +4,54 @@ import { statfsSync } from "node:fs";
 
 const PROMPTS_DIR = "/prompts";
 const QB_URL = "http://qbittorrent:8080";
+const JELLYFIN_URL = "http://jellyfin:8096";
+const PIHOLE_URL = "http://host.docker.internal:7001";
+const JELLYFIN_API_KEY = process.env.JELLYFIN_API_KEY || "";
+const PIHOLE_PASSWORD = process.env.FTLCONF_webserver_api_password || "";
+
+let piholeSID: string | null = null;
+
+async function piholeAuth() {
+  const res = await fetch(`${PIHOLE_URL}/api/auth`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password: PIHOLE_PASSWORD }),
+  });
+  if (!res.ok) throw new Error(`pihole auth failed: ${res.status}`);
+  const data: any = await res.json();
+  piholeSID = data?.session?.sid || null;
+  if (!piholeSID) throw new Error("pihole auth returned no session id");
+}
+
+async function piholeGet(path: string): Promise<any> {
+  if (!piholeSID) await piholeAuth();
+  const doFetch = () =>
+    fetch(`${PIHOLE_URL}${path}`, { headers: { "X-FTL-SID": piholeSID as string } });
+  let res = await doFetch();
+  if (res.status === 401) {
+    await piholeAuth();
+    res = await doFetch();
+  }
+  if (!res.ok) throw new Error(`pihole GET ${path} failed: ${res.status}`);
+  return res.json();
+}
+
+function ticksToMs(t: number): number {
+  return Math.max(0, Math.floor(t / 10000));
+}
+
+function formatTitle(item: any): string {
+  if (!item) return "";
+  if (item.Type === "Episode") {
+    const s = item.ParentIndexNumber != null ? `S${String(item.ParentIndexNumber).padStart(2, "0")}` : "";
+    const e = item.IndexNumber != null ? `E${String(item.IndexNumber).padStart(2, "0")}` : "";
+    const se = [s, e].filter(Boolean).join("");
+    const parts = [item.SeriesName, se, item.Name].filter(Boolean);
+    return parts.join(" · ");
+  }
+  if (item.ProductionYear) return `${item.Name} (${item.ProductionYear})`;
+  return item.Name || "";
+}
 
 function cleanTitle(name: string): string {
   // strip file extension
@@ -165,6 +213,116 @@ const server = Bun.serve({
         });
       } catch {
         return Response.json({ error: true });
+      }
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/jellyfin-sessions") {
+      try {
+        const res = await fetch(`${JELLYFIN_URL}/Sessions`, {
+          headers: { "X-MediaBrowser-Token": JELLYFIN_API_KEY },
+        });
+        if (!res.ok) throw new Error(`jellyfin ${res.status}`);
+        const sessions: any[] = await res.json();
+        const active = sessions
+          .filter((s) => s.NowPlayingItem)
+          .map((s) => {
+            const item = s.NowPlayingItem;
+            const ti = s.TranscodingInfo || null;
+            const streams: any[] = item?.MediaStreams || [];
+            const videoSrc = streams.find((x) => x.Type === "Video");
+            const audioSrc = streams.find((x) => x.Type === "Audio" && x.Index === item.DefaultAudioStreamIndex) || streams.find((x) => x.Type === "Audio");
+            const subStream = item.DefaultSubtitleStreamIndex != null
+              ? streams.find((x) => x.Type === "Subtitle" && x.Index === item.DefaultSubtitleStreamIndex)
+              : null;
+            return {
+              user: s.UserName || "—",
+              client: s.Client || "",
+              device: s.DeviceName || "",
+              title: formatTitle(item),
+              type: item.Type,
+              positionMs: ticksToMs(s.PlayState?.PositionTicks || 0),
+              durationMs: ticksToMs(item.RunTimeTicks || 0),
+              isPaused: !!s.PlayState?.IsPaused,
+              playMethod: s.PlayState?.PlayMethod || (ti ? "Transcode" : "DirectPlay"),
+              source: {
+                container: item.Container || "",
+                videoCodec: videoSrc?.Codec || "",
+                audioCodec: audioSrc?.Codec || "",
+                resolution: videoSrc ? (videoSrc.Height ? `${videoSrc.Height}p` : "") : "",
+                audioChannels: audioSrc?.Channels || null,
+              },
+              output: ti ? {
+                container: ti.Container || "",
+                videoCodec: ti.VideoCodec || "",
+                audioCodec: ti.AudioCodec || "",
+                bitrate: ti.Bitrate || 0,
+                isVideoDirect: !!ti.IsVideoDirect,
+                isAudioDirect: !!ti.IsAudioDirect,
+                reasons: ti.TranscodeReasons || [],
+              } : null,
+              subtitle: subStream ? {
+                language: subStream.Language || subStream.DisplayTitle || "",
+                codec: subStream.Codec || "",
+                isExternal: !!subStream.IsExternal,
+              } : null,
+            };
+          });
+        return Response.json(active);
+      } catch {
+        return Response.json([]);
+      }
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/pihole-clients") {
+      try {
+        const [permitted, blocked, recent] = await Promise.all([
+          piholeGet("/api/stats/top_clients?blocked=false&count=30"),
+          piholeGet("/api/stats/top_clients?blocked=true&count=30"),
+          piholeGet("/api/queries?length=2000"),
+        ]);
+        const lastSeen = new Map<string, number>();
+        for (const q of (recent?.queries || [])) {
+          const ip = q?.client?.ip;
+          const t = q?.time;
+          if (!ip || !t) continue;
+          const prev = lastSeen.get(ip) || 0;
+          if (t > prev) lastSeen.set(ip, t);
+        }
+        const leases = new Map<string, number>();
+        try {
+          const content = await Bun.file("/pihole/dhcp.leases").text();
+          for (const line of content.split("\n")) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length < 3) continue;
+            const expiry = +parts[0];
+            const ip = parts[2];
+            if (ip && !isNaN(expiry)) leases.set(ip, expiry);
+          }
+        } catch {}
+        const map = new Map<string, { name: string; ip: string; permitted: number; blocked: number }>();
+        for (const c of (permitted?.clients || [])) {
+          const key = c.ip || c.name;
+          map.set(key, { name: c.name || c.ip, ip: c.ip || "", permitted: c.count || 0, blocked: 0 });
+        }
+        for (const c of (blocked?.clients || [])) {
+          const key = c.ip || c.name;
+          const cur = map.get(key) || { name: c.name || c.ip, ip: c.ip || "", permitted: 0, blocked: 0 };
+          cur.blocked = c.count || 0;
+          map.set(key, cur);
+        }
+        const rows = Array.from(map.values())
+          .filter((r) => r.ip !== "127.0.0.1" && r.ip !== "::1" && r.name !== "localhost")
+          .map((r) => ({
+            ...r,
+            total: r.permitted + r.blocked,
+            blockedPct: r.permitted + r.blocked > 0 ? Math.round((r.blocked / (r.permitted + r.blocked)) * 100) : 0,
+            lastSeen: lastSeen.get(r.ip) || null,
+            leaseExpiry: leases.get(r.ip) || null,
+          }))
+          .sort((a, b) => b.total - a.total);
+        return Response.json(rows);
+      } catch {
+        return Response.json([]);
       }
     }
 

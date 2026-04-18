@@ -2,7 +2,7 @@
 
 Docker Compose stack for a home media server with a mobile-first dashboard and an AI-powered movie bot.
 
-**Services:** Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Caddy (reverse proxy), jellyfin-proxy (HEVC force-transcode shim), Dashboard (Movie Bot)
+**Services:** Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Pi-hole (network-wide DNS + ad-blocking + optional DHCP), Caddy (reverse proxy), jellyfin-proxy (HEVC force-transcode shim), Dashboard (Movie Bot)
 
 ## What it does
 
@@ -105,6 +105,7 @@ The repo includes exported settings for all services (quality profiles, naming c
 This restores:
 - **Radarr/Sonarr** — custom formats, quality profiles, quality definitions, root folders, naming
 - **qBittorrent** — preferences, categories
+- **Pi-hole** — adlists, static DHCP leases, DNS upstreams (requires `PIHOLE_URL` and `FTLCONF_webserver_api_password` in `.api_keys`)
 
 After restoring, you'll need to manually:
 - Re-enter download client passwords in Sonarr/Radarr
@@ -129,6 +130,38 @@ Add to your crontab (`crontab -e`):
 
 This checks for new prompts from the dashboard every minute and runs Claude Code to process them.
 
+### 9. Pi-hole (optional but recommended)
+
+Pi-hole comes up with the rest of the stack and **already blocks ads across any client pointed at it for DNS**. The steps below are to actually route your LAN through it.
+
+**Networking model:**
+
+- Runs in `network_mode: host` so DHCP broadcasts (UDP 67) can reach it — bridge mode silently breaks for DHCP.
+- Binds DNS (`:53`) only to specific interface IPs (`${LAN_IP}`, loopback, link-local v6), not `0.0.0.0` — this avoids conflict with Ubuntu's systemd-resolved on `127.0.0.53:53`. Host processes keep using resolved; LAN clients hit Pi-hole.
+- Web UI runs on `:7001` (changed from default `:80` to keep out of Caddy's way); Caddy reverse-proxies to it at `https://pihole.{DOMAIN}/admin/`.
+
+**Configure your router to use Pi-hole as DNS:**
+
+In your router's admin UI, set **primary DNS to `${LAN_IP}`** (the IP of this box). If your router insists on two DNS entries, **duplicate** the same IP — don't add `1.1.1.1` as secondary, or clients will silently leak past Pi-hole on timeouts.
+
+Devices pick up the new DNS on their next DHCP renewal. Toggle Wi-Fi on a client to force it immediately.
+
+**Android gotcha:** each phone's *Settings → Network & Internet → Private DNS* must be **Off** or **Automatic**. Any other value (dns.google, 1dot1dot1dot1.cloudflare-dns.com) tunnels DNS over TLS past Pi-hole.
+
+**Optionally move DHCP to Pi-hole** for per-device analytics and stable hostnames in the admin UI:
+
+1. In Pi-hole admin (`https://pihole.{DOMAIN}/admin/settings/dhcp`), enable DHCP with the same range your router was using (typically `192.168.1.2`–`192.168.1.254`, router/gateway `192.168.1.1`, netmask `255.255.255.0`, lease `24h`).
+2. **Recreate your static leases** in Pi-hole's *Static DHCP leases* section — at minimum for this server itself (so the Cloudflare wildcard target stays stable). You can also set them via CLI:
+   ```sh
+   docker exec pihole pihole-FTL --config dhcp.hosts '["AA:BB:CC:DD:EE:FF,192.168.1.33,SERVER"]'
+   ```
+3. In the router: uncheck **Use Router as DHCP Server**.
+4. Toggle Wi-Fi on one device to verify it gets a lease from Pi-hole. If something breaks: re-enable router DHCP and disable Pi-hole DHCP — you're back where you started in under 30 seconds.
+
+Existing devices keep their old leases until they expire (up to 24h) — toggling Wi-Fi on each device forces a faster transition.
+
+**Recovery if Pi-hole dies** and DNS goes out for the whole LAN: set router DNS back to a public resolver (`1.1.1.1`) at the router admin page. Takes ~30 seconds, buys time to debug.
+
 ## Accessing services
 
 All services are available via HTTPS at `<service>.yourdomain.org`:
@@ -149,15 +182,17 @@ Services are also available on their original ports via IP for direct access.
 
 ## Dashboard
 
-The dashboard is a mobile-first web app at `https://www.yourdomain.org` with 5 swipeable panels:
+The dashboard is a mobile-first web app at `https://www.yourdomain.org` with 7 swipeable panels:
 
 1. **History** (green, fish) — recent Movie Bot prompts and responses
 2. **Movie Bot** (orange, crab) — submit requests to the AI
 3. **Downloads** (blue, octopus) — active torrents with filters
 4. **Server** (purple, bugs) — CPU load, memory, swap, disk usage
-5. **Services** (yellow, bees) — quick links to all service dashboards
+5. **Now Playing** (pink, jellyfish) — active Jellyfin streams with transcoding / source-vs-output detail
+6. **Clients** (red, skulls + bats) — Pi-hole per-client allowed/blocked counts
+7. **Services** (yellow, bees) — quick links to all service dashboards
 
-On desktop (900px+), all panels display in a 3-column grid with auto-polling.
+On desktop (900px+), all panels display in a 4-column grid with auto-polling.
 
 ## Storage
 

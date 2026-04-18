@@ -10,7 +10,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 SETTINGS_DIR="$REPO_ROOT/settings"
 source "$REPO_ROOT/.api_keys"
 
-mkdir -p "$SETTINGS_DIR"/{radarr,sonarr,prowlarr,bazarr,qbittorrent,jellyfin}
+mkdir -p "$SETTINGS_DIR"/{radarr,sonarr,prowlarr,bazarr,qbittorrent,jellyfin,pihole}
 
 echo "==> Radarr"
 curl -s -H "X-Api-Key: $RADARR_API_KEY" "$RADARR_URL/api/v3/qualityprofile" | jq '.' > "$SETTINGS_DIR/radarr/quality-profiles.json"
@@ -86,6 +86,24 @@ curl -s -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "$JELLYFIN_URL/Library/Virt
 curl -s -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "$JELLYFIN_URL/Users" | jq '[.[] | {Name, Policy: {IsAdministrator: .Policy.IsAdministrator, EnableAllFolders: .Policy.EnableAllFolders, EnabledFolders: .Policy.EnabledFolders, MaxStreamingBitrate: .Policy.MaxStreamingBitrate, RemoteClientBitrateLimit: .Policy.RemoteClientBitrateLimit}}]' > "$SETTINGS_DIR/jellyfin/users.json"
 curl -s -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "$JELLYFIN_URL/System/Configuration/encoding" | jq '{HardwareAccelerationType, EnableHardwareEncoding, EnableDecodingColorDepth10Hevc, EnableDecodingColorDepth10Vp9, VaapiDevice}' > "$SETTINGS_DIR/jellyfin/encoding.json"
 echo "    libraries, users, encoding"
+
+echo "==> Pi-hole"
+PIHOLE_SID=$(curl -s -X POST "$PIHOLE_URL/api/auth" \
+    -H "Content-Type: application/json" \
+    -d "{\"password\":\"$FTLCONF_webserver_api_password\"}" \
+    | jq -r '.session.sid // empty')
+if [ -n "$PIHOLE_SID" ]; then
+    curl -s -H "X-FTL-SID: $PIHOLE_SID" "$PIHOLE_URL/api/lists" \
+        | jq '[.lists[] | {address, enabled, type, comment}]' > "$SETTINGS_DIR/pihole/adlists.json"
+    curl -s -H "X-FTL-SID: $PIHOLE_SID" "$PIHOLE_URL/api/config/dhcp/hosts" \
+        | jq '.config.dhcp.hosts' > "$SETTINGS_DIR/pihole/dhcp-hosts.json"
+    curl -s -H "X-FTL-SID: $PIHOLE_SID" "$PIHOLE_URL/api/config/dns/upstreams" \
+        | jq '.config.dns.upstreams' > "$SETTINGS_DIR/pihole/dns-upstreams.json"
+    curl -s -X DELETE -H "X-FTL-SID: $PIHOLE_SID" "$PIHOLE_URL/api/auth" > /dev/null
+    echo "    adlists, dhcp-hosts, dns-upstreams"
+else
+    echo "    skipped (auth failed — is Pi-hole reachable at $PIHOLE_URL?)"
+fi
 
 echo ""
 echo "Done! Settings exported to $SETTINGS_DIR/"

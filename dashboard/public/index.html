@@ -22,7 +22,7 @@
 
     .viewport {
       display: flex;
-      width: 500vw;
+      width: 700vw;
       height: 100dvh;
     }
     .viewport.animating {
@@ -36,17 +36,20 @@
       .viewport { display: none !important; }
       .desktop-grid {
         display: grid !important;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         grid-template-rows: 1fr 1fr;
         gap: 0.75rem;
         padding: 0.75rem;
         height: 100vh;
         overflow: hidden;
       }
-      .desktop-grid .panel-history {
-        grid-column: 2;
-        grid-row: 1 / 3;
-      }
+      .desktop-grid #panelMain      { grid-column: 1; grid-row: 1; }
+      .desktop-grid .panel-torrents { grid-column: 1; grid-row: 2; }
+      .desktop-grid .panel-history  { grid-column: 2; grid-row: 1 / 3; }
+      .desktop-grid .panel-status   { grid-column: 3; grid-row: 1; }
+      .desktop-grid .panel-streams  { grid-column: 3; grid-row: 2; }
+      .desktop-grid .panel-pihole   { grid-column: 4; grid-row: 1; }
+      .desktop-grid .panel-links    { grid-column: 4; grid-row: 2; }
       .desktop-grid .panel {
         width: auto; height: auto;
         border-radius: 16px;
@@ -59,6 +62,8 @@
       .desktop-grid .panel-history  { border-color: #1a3a2a; }
       .desktop-grid .panel-torrents { border-color: #0e1a3a; }
       .desktop-grid .panel-status   { border-color: #1e1a2e; position: relative; }
+      .desktop-grid .panel-streams  { border-color: #2a0e1a; position: relative; }
+      .desktop-grid .panel-pihole   { border-color: #2a0e0e; position: relative; }
       .desktop-grid .panel-links    { border-color: #2a2610; }
       .desktop-grid .panel-blank    { border-color: #1e1e2e; background: #08080e; }
       .desktop-grid .dots { display: none; }
@@ -409,6 +414,112 @@
     .service-desc { font-size: 0.72rem; color: #7a7550; margin-top: 0.15rem; }
     .service-arrow { color: #3a3618; font-size: 1.2rem; }
 
+    /* ---- streams (pink/rose) ---- */
+    .panel-streams { background: #0e0610; position: relative; }
+    .section-title-pink {
+      font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
+      color: #f472b6; margin-bottom: 1rem;
+      text-shadow: 0 0 10px rgba(244, 114, 182, 0.3);
+    }
+    .jelly-zone {
+      position: absolute; inset: 0;
+      overflow: hidden; pointer-events: none; z-index: 0;
+    }
+    .panel-streams .panel-inner { position: relative; z-index: 1; }
+    .jelly {
+      position: absolute; user-select: none; line-height: 1;
+      filter: drop-shadow(0 0 14px rgba(244, 114, 182, 0.35));
+      opacity: 0.7;
+    }
+    .jelly-0 { font-size: 2.5rem; animation: jellyDrift0 11s ease-in-out infinite; }
+    .jelly-1 { font-size: 1.8rem; animation: jellyDrift1 14s ease-in-out infinite; opacity: 0.5; }
+    @keyframes jellyDrift0 {
+      0%   { left: 10%; top: 20%; transform: rotate(0deg); }
+      25%  { left: 60%; top: 12%; transform: rotate(-6deg) translateY(-4px); }
+      50%  { left: 75%; top: 55%; transform: rotate(4deg) translateY(2px); }
+      75%  { left: 25%; top: 70%; transform: rotate(-3deg) translateY(-3px); }
+      100% { left: 10%; top: 20%; transform: rotate(0deg); }
+    }
+    @keyframes jellyDrift1 {
+      0%   { left: 70%; top: 75%; transform: rotate(0deg); }
+      20%  { left: 30%; top: 85%; transform: rotate(5deg) translateY(-2px); }
+      40%  { left: 15%; top: 50%; transform: rotate(-4deg) translateY(3px); }
+      60%  { left: 45%; top: 25%; transform: rotate(6deg) translateY(-3px); }
+      80%  { left: 80%; top: 40%; transform: rotate(-2deg) translateY(2px); }
+      100% { left: 70%; top: 75%; transform: rotate(0deg); }
+    }
+    .stream-card {
+      background: #1a0a14; border: 1px solid #2a0e1a; border-radius: 14px;
+      padding: 1rem; margin-bottom: 0.75rem;
+    }
+    .stream-title { font-size: 0.95rem; font-weight: 600; color: #f472b6; margin-bottom: 0.4rem; line-height: 1.3; }
+    .stream-who { font-size: 0.75rem; color: #b06088; margin-bottom: 0.6rem; }
+    .stream-meta { font-size: 0.72rem; color: #8a5068; line-height: 1.6; }
+    .stream-meta div { margin-bottom: 0.15rem; }
+    .stream-meta .label { color: #6a3a50; display: inline-block; min-width: 68px; }
+    .stream-bar {
+      height: 4px; border-radius: 2px; background: #2a0e1a;
+      margin-top: 0.5rem; overflow: hidden;
+    }
+    .stream-bar-fill {
+      height: 100%; border-radius: 2px;
+      background: linear-gradient(90deg, #be185d, #f472b6);
+      box-shadow: 0 0 8px rgba(244, 114, 182, 0.35);
+      transition: width 0.5s ease;
+    }
+    .stream-empty { color: #4a2a3a; text-align: center; margin-top: 3rem; font-size: 0.9rem; }
+    .badge-transcode { background: rgba(244, 114, 182, 0.15); color: #f472b6; }
+    .badge-direct { background: rgba(74, 222, 128, 0.12); color: #4ade80; }
+
+    /* ---- pihole (red/skulls) ---- */
+    .panel-pihole { background: #0a0606; position: relative; }
+    .section-title-red {
+      font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
+      color: #ef4444; margin-bottom: 1rem;
+      text-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    }
+    .spooky-zone {
+      position: absolute; inset: 0;
+      overflow: hidden; pointer-events: none; z-index: 0;
+    }
+    .panel-pihole .panel-inner { position: relative; z-index: 1; }
+    .spooky {
+      position: absolute; user-select: none; line-height: 1;
+      opacity: 0.3;
+      filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.25));
+    }
+    .spooky-tl { top: 1rem; left: 1rem; font-size: 2rem; animation: spook 22s linear infinite; }
+    .spooky-tr { top: 1rem; right: 1rem; font-size: 1.8rem; animation: spook 26s linear infinite reverse; }
+    .spooky-bl { bottom: 1rem; left: 1rem; font-size: 1.8rem; animation: spook 30s linear infinite reverse; }
+    .spooky-br { bottom: 1rem; right: 1rem; font-size: 2rem; animation: spook 24s linear infinite; }
+    @keyframes spook {
+      0%   { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .client-card {
+      background: #14080a; border: 1px solid #2a0e0e; border-radius: 14px;
+      padding: 0.85rem 1rem; margin-bottom: 0.6rem;
+    }
+    .client-name { font-size: 0.92rem; font-weight: 600; color: #fca5a5; }
+    .client-ip { font-size: 0.7rem; color: #7a3030; margin-left: 0.4rem; }
+    .client-counts { font-size: 0.72rem; color: #a07070; margin-top: 0.35rem; display: flex; gap: 0.9rem; flex-wrap: wrap; }
+    .client-counts .allowed { color: #4ade80; }
+    .client-counts .blocked { color: #ef4444; }
+    .client-bar {
+      height: 4px; border-radius: 2px; background: #2a0e0e;
+      margin-top: 0.45rem; overflow: hidden;
+      display: flex;
+    }
+    .client-bar-allowed {
+      background: linear-gradient(90deg, #16a34a, #4ade80);
+      box-shadow: 0 0 6px rgba(74, 222, 128, 0.3);
+    }
+    .client-bar-blocked {
+      background: linear-gradient(90deg, #b91c1c, #ef4444);
+      box-shadow: 0 0 6px rgba(239, 68, 68, 0.3);
+    }
+    .client-empty { color: #4a2020; text-align: center; margin-top: 3rem; font-size: 0.9rem; }
+
     @keyframes crabBlast {
       0%   { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(0.3); }
       20%  { opacity: 1; transform: translate(calc(var(--tx)*0.3), calc(var(--ty)*0.3)) rotate(calc(var(--rot)*0.3)) scale(1.2); }
@@ -424,7 +535,7 @@
         <div class="fish-zone"><div class="fish critter">🐟</div></div>
         <div class="section-title-green">RECENT</div>
         <div id="historyList"></div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
       </div>
     </div>
 
@@ -441,7 +552,7 @@
           <button class="send-btn" id="send">GET TO IT</button>
           <div class="status" id="status"></div>
         </div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
       </div>
     </div>
 
@@ -451,13 +562,13 @@
         <div class="octo-zone"><div class="octopus critter">🐙</div></div>
         <div class="section-title-blue">DOWNLOADS</div>
         <div class="torrent-filters" id="torrentFilters">
-          <button class="filter-btn active" data-filter="all">All</button>
-          <button class="filter-btn" data-filter="downloading">Downloading</button>
+          <button class="filter-btn" data-filter="all">All</button>
+          <button class="filter-btn active" data-filter="downloading">Downloading</button>
           <button class="filter-btn" data-filter="seeding">Seeding</button>
           <button class="filter-btn" data-filter="queued">Queued</button>
         </div>
         <div id="torrentList"></div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
       </div>
     </div>
 
@@ -467,11 +578,39 @@
       <div class="panel-inner">
         <div class="section-title-purple" style="padding-top:1rem">SERVER</div>
         <div id="statusCards"></div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
       </div>
     </div>
 
-    <!-- page 4: service links -->
+    <!-- page 4: jellyfin streams -->
+    <div class="panel panel-streams scrollable" id="panelStreams">
+      <div class="jelly-zone">
+        <div class="jelly critter jelly-0">🪼</div>
+        <div class="jelly critter jelly-1">🪼</div>
+      </div>
+      <div class="panel-inner">
+        <div class="section-title-pink" style="padding-top:1rem">NOW PLAYING</div>
+        <div id="streamsList"></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
+      </div>
+    </div>
+
+    <!-- page 5: pihole clients -->
+    <div class="panel panel-pihole scrollable" id="panelPihole">
+      <div class="spooky-zone">
+        <div class="spooky critter spooky-tl">💀</div>
+        <div class="spooky critter spooky-tr">🦇</div>
+        <div class="spooky critter spooky-bl">🦇</div>
+        <div class="spooky critter spooky-br">💀</div>
+      </div>
+      <div class="panel-inner">
+        <div class="section-title-red" style="padding-top:1rem">CLIENTS</div>
+        <div id="piholeList"></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
+      </div>
+    </div>
+
+    <!-- page 6: service links -->
     <div class="panel panel-links scrollable" id="panelLinks">
       <div class="panel-inner">
         <div class="bee-zone">
@@ -519,7 +658,7 @@
           <div class="service-info"><div class="service-name">Pi-hole</div><div class="service-desc">Network-wide DNS ad-blocker</div></div>
           <div class="service-arrow">›</div>
         </a>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
       </div>
     </div>
   </div>
@@ -536,8 +675,10 @@
     const historyList = document.getElementById('historyList');
     const torrentList = document.getElementById('torrentList');
     const allDots = document.querySelectorAll('.dot');
-    const PAGES = 5;
+    const PAGES = 7;
     const statusCards = document.getElementById('statusCards');
+    const streamsList = document.getElementById('streamsList');
+    const piholeList = document.getElementById('piholeList');
 
     // ---- unified touch: swipe + pull-to-refresh ----
     const W = () => window.innerWidth;
@@ -568,13 +709,17 @@
       if (p === 0) loadHistory();
       if (p === 2) loadTorrents();
       if (p === 3) loadStatus();
+      if (p === 4) loadStreams();
+      if (p === 5) loadPiholeClients();
     }
 
     function onPageLoad(p) {
       if (p === 0) loadHistory();
       else if (p === 2) loadTorrents();
       else if (p === 3) { loadStatus(); spawnBug(); }
-      else if (p === 4) spawnBee();
+      else if (p === 4) loadStreams();
+      else if (p === 5) loadPiholeClients();
+      else if (p === 6) spawnBee();
     }
 
     // ---- bug simulation (requestAnimationFrame) ----
@@ -839,7 +984,7 @@
 
     // ---- torrents ----
     let allTorrents = [];
-    let activeFilter = 'all';
+    let activeFilter = 'downloading';
 
     const filterBtns = document.querySelectorAll('.filter-btn');
     filterBtns.forEach(btn => {
@@ -945,6 +1090,128 @@
       }
     }
 
+    // ---- jellyfin streams ----
+    function fmtTime(ms) {
+      const s = Math.floor(ms / 1000);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+      return `${m}:${String(sec).padStart(2,'0')}`;
+    }
+    function fmtMbps(bitrate) {
+      if (!bitrate) return '';
+      return (bitrate / 1_000_000).toFixed(1) + ' Mbps';
+    }
+    function streamBadge(s) {
+      if (s.output) return '<span class="badge badge-transcode">TRANSCODE</span>';
+      if (s.playMethod === 'DirectStream') return '<span class="badge badge-direct">DIRECT STREAM</span>';
+      return '<span class="badge badge-direct">DIRECT PLAY</span>';
+    }
+    function renderStream(s) {
+      const pct = s.durationMs > 0 ? Math.round((s.positionMs / s.durationMs) * 100) : 0;
+      const src = s.source;
+      const out = s.output;
+      const srcLine = [
+        src.container && src.container.toUpperCase(),
+        src.videoCodec && src.videoCodec.toUpperCase(),
+        src.resolution,
+        src.audioCodec && `${src.audioCodec.toUpperCase()}${src.audioChannels ? ' ' + src.audioChannels + 'ch' : ''}`,
+      ].filter(Boolean).join(' · ');
+      const outLine = out ? [
+        out.isVideoDirect ? 'video: copy' : (out.videoCodec && `video: ${out.videoCodec.toUpperCase()}`),
+        out.isAudioDirect ? 'audio: copy' : (out.audioCodec && `audio: ${out.audioCodec.toUpperCase()}`),
+        fmtMbps(out.bitrate),
+      ].filter(Boolean).join(' · ') : '';
+      const reasons = out && out.reasons.length ? out.reasons.join(', ') : '';
+      const sub = s.subtitle ? `${s.subtitle.language || '?'}${s.subtitle.isExternal ? ' (ext)' : ''}${s.subtitle.codec ? ' · ' + s.subtitle.codec : ''}` : 'off';
+      return `
+        <div class="stream-card">
+          <div class="stream-title">${esc(s.title)}</div>
+          <div class="stream-who">${esc(s.user)} · ${esc(s.device || s.client)}${s.isPaused ? ' · paused' : ''}</div>
+          <div class="stream-meta">
+            <div>${streamBadge(s)} ${out ? '<span style="color:#b06088">' + esc(reasons) + '</span>' : ''}</div>
+            <div><span class="label">source</span>${esc(srcLine)}</div>
+            ${out ? `<div><span class="label">output</span>${esc(outLine)}</div>` : ''}
+            <div><span class="label">subs</span>${esc(sub)}</div>
+            <div><span class="label">position</span>${fmtTime(s.positionMs)} / ${fmtTime(s.durationMs)}</div>
+          </div>
+          <div class="stream-bar"><div class="stream-bar-fill" style="width:${pct}%"></div></div>
+        </div>
+      `;
+    }
+    async function loadStreams() {
+      try {
+        const res = await fetch('/api/jellyfin-sessions');
+        const items = await res.json();
+        if (!items.length) {
+          streamsList.innerHTML = '<div class="stream-empty">Nothing playing right now.</div>';
+          return;
+        }
+        streamsList.innerHTML = items.map(renderStream).join('');
+      } catch {
+        streamsList.innerHTML = '<div class="stream-empty">Could not load streams.</div>';
+      }
+    }
+
+    // ---- pihole clients ----
+    function fmtAgo(epochSec) {
+      if (!epochSec) return 'idle';
+      const now = Date.now() / 1000;
+      const d = Math.max(0, now - epochSec);
+      if (d < 60) return `${Math.floor(d)}s ago`;
+      if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+      if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+      return `${Math.floor(d / 86400)}d ago`;
+    }
+    function fmtLease(expiryEpoch) {
+      if (!expiryEpoch) return 'no lease';
+      const now = Date.now() / 1000;
+      const d = expiryEpoch - now;
+      if (d < 0) return `expired ${fmtAgo(expiryEpoch)}`;
+      if (d < 60) return `expires ${Math.floor(d)}s`;
+      if (d < 3600) return `expires ${Math.floor(d / 60)}m`;
+      if (d < 86400) return `expires ${Math.floor(d / 3600)}h`;
+      return `expires ${Math.floor(d / 86400)}d`;
+    }
+    async function loadPiholeClients() {
+      try {
+        const res = await fetch('/api/pihole-clients');
+        const items = await res.json();
+        if (!items.length) {
+          piholeList.innerHTML = '<div class="client-empty">No client data yet.</div>';
+          return;
+        }
+        const maxTotal = Math.max(1, ...items.map(x => x.total));
+        piholeList.innerHTML = items.map(c => {
+          const totalPct = Math.round((c.total / maxTotal) * 100);
+          const blockedFrac = c.total > 0 ? c.blocked / c.total : 0;
+          const blockedWidth = totalPct * blockedFrac;
+          const allowedWidth = totalPct - blockedWidth;
+          const name = c.name && c.name !== c.ip ? c.name : c.ip;
+          const ipBadge = (c.name && c.name !== c.ip) ? `<span class="client-ip">${esc(c.ip)}</span>` : '';
+          return `
+            <div class="client-card">
+              <div><span class="client-name">${esc(name)}</span>${ipBadge}</div>
+              <div class="client-counts">
+                <span><span class="allowed">${c.permitted.toLocaleString()}</span> allowed</span>
+                <span><span class="blocked">${c.blocked.toLocaleString()}</span> blocked</span>
+                <span>${c.blockedPct}% block rate</span>
+                <span>last: ${fmtAgo(c.lastSeen)}</span>
+                <span>${fmtLease(c.leaseExpiry)}</span>
+              </div>
+              <div class="client-bar">
+                <div class="client-bar-allowed" style="width:${allowedWidth}%"></div>
+                <div class="client-bar-blocked" style="width:${blockedWidth}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch {
+        piholeList.innerHTML = '<div class="client-empty">Could not load clients.</div>';
+      }
+    }
+
     function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
     // ---- crab explosion on submit ----
@@ -1030,6 +1297,8 @@
       document.getElementById('panelMain'),
       document.getElementById('panelTorrents'),
       document.getElementById('panelStatus'),
+      document.getElementById('panelStreams'),
+      document.getElementById('panelPihole'),
       document.getElementById('panelLinks'),
     ];
     let currentLayout = null;
@@ -1039,15 +1308,15 @@
       const desktop = window.innerWidth >= 900;
       if (desktop && currentLayout !== 'desktop') {
         currentLayout = 'desktop';
-        // grid: col1=[moviebot, downloads] col2=[history full] col3=[server, services]
-        [panels[1], panels[2], panels[0], panels[3], panels[4]]
+        // grid: col1=[moviebot, downloads] col2=[history full] col3=[server, streams] col4=[pihole, services]
+        [panels[1], panels[2], panels[0], panels[3], panels[4], panels[5], panels[6]]
           .forEach(p => desktopGrid.appendChild(p));
         // load all data immediately
-        loadHistory(); loadTorrents(); loadStatus();
+        loadHistory(); loadTorrents(); loadStatus(); loadStreams(); loadPiholeClients();
         // auto-poll every 15s
         if (pollTimer) clearInterval(pollTimer);
         pollTimer = setInterval(() => {
-          loadHistory(); loadTorrents(); loadStatus();
+          loadHistory(); loadTorrents(); loadStatus(); loadStreams(); loadPiholeClients();
         }, 15000);
       } else if (!desktop && currentLayout !== 'mobile') {
         currentLayout = 'mobile';

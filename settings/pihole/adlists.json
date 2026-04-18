@@ -1,0 +1,14 @@
+[
+  {
+    "address": "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+    "enabled": false,
+    "type": "block",
+    "comment": "Migrated from /etc/pihole/adlists.list"
+  },
+  {
+    "address": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.txt",
+    "enabled": true,
+    "type": "block",
+    "comment": "Hagezi Multi Pro"
+  }
+]

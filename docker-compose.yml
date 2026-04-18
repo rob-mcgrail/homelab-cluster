@@ -134,10 +134,15 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
+    env_file:
+      - .api_keys
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./prompts:/prompts
       - ./dashboard/public:/app/public
       - ${DATA_ROOT}:/hostdata:ro
+      - ${CONFIG_ROOT}/pihole/etc-pihole/dhcp.leases:/pihole/dhcp.leases:ro
     restart: unless-stopped
 
   caddy:
@@ -210,6 +215,7 @@ services:
       - FTLCONF_dns_interface=eno1
       - FTLCONF_database_maxDBdays=7
       - FTLCONF_webserver_port=7001o,[::]:7001o
+      - FTLCONF_dns_piholePTR=NONE
     volumes:
       - ${CONFIG_ROOT}/pihole/etc-pihole:/etc/pihole
       - ${CONFIG_ROOT}/pihole/etc-dnsmasq.d:/etc/dnsmasq.d

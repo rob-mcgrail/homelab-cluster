@@ -26,5 +26,54 @@
         ]
       }
     ]
+  },
+  {
+    "id": 2,
+    "name": "YTS/YIFY",
+    "includeCustomFormatWhenRenaming": false,
+    "specifications": [
+      {
+        "name": "YTS/YIFY Release Group",
+        "implementation": "ReleaseGroupSpecification",
+        "implementationName": "Release Group",
+        "infoLink": "https://wiki.servarr.com/sonarr/settings#custom-formats-2",
+        "negate": false,
+        "required": false,
+        "fields": [
+          {
+            "order": 0,
+            "name": "value",
+            "label": "Regular Expression",
+            "helpText": "Custom Format RegEx is Case Insensitive",
+            "value": "^(YTS|YIFY)",
+            "type": "textbox",
+            "advanced": false,
+            "privacy": "normal",
+            "isFloat": false
+          }
+        ]
+      },
+      {
+        "name": "YTS/YIFY Release Title",
+        "implementation": "ReleaseTitleSpecification",
+        "implementationName": "Release Title",
+        "infoLink": "https://wiki.servarr.com/sonarr/settings#custom-formats-2",
+        "negate": false,
+        "required": false,
+        "fields": [
+          {
+            "order": 0,
+            "name": "value",
+            "label": "Regular Expression",
+            "helpText": "Custom Format RegEx is Case Insensitive",
+            "value": "\\b(YTS|YIFY)\\b",
+            "type": "textbox",
+            "advanced": false,
+            "privacy": "normal",
+            "isFloat": false
+          }
+        ]
+      }
+    ]
   }
 ]
