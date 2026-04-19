@@ -1,0 +1,56 @@
+.panel-torrents { background: #06080e; }
+
+.octopus {
+  font-size: 3.2rem; position: absolute; top: 18px;
+  animation: drift 7s ease-in-out infinite;
+  filter: drop-shadow(0 0 14px rgba(0, 180, 255, 0.4));
+}
+@keyframes drift {
+  0%   { left: 10%; transform: translateY(0) rotate(0deg); }
+  25%  { transform: translateY(-8px) rotate(5deg); }
+  50%  { left: calc(100% - 4rem); transform: translateY(0) rotate(-3deg); }
+  75%  { transform: translateY(-6px) rotate(4deg); }
+  100% { left: 10%; transform: translateY(0) rotate(0deg); }
+}
+
+.section-title-blue {
+  font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
+  color: #00d4ff; margin-bottom: 1rem;
+  text-shadow: 0 0 10px rgba(0, 180, 255, 0.3);
+}
+
+.torrent-filters { display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.torrent-filters .filter-btn {
+  background: #0a0e1a; border-color: #0e1a3a; color: #4a6a8a;
+}
+.torrent-filters .filter-btn.active {
+  background: rgba(0, 180, 255, 0.12); border-color: rgba(0, 180, 255, 0.3); color: #00d4ff;
+}
+
+.torrent-empty { color: #2a3a4a; text-align: center; margin-top: 3rem; font-size: 0.9rem; }
+.torrent-item {
+  background: #0a0e1a; border: 1px solid #0e1a3a; border-radius: 14px;
+  padding: 1rem; margin-bottom: 0.75rem;
+}
+.torrent-name { font-size: 0.9rem; font-weight: 600; color: #00d4ff; margin-bottom: 0.2rem; line-height: 1.3; }
+.torrent-source {
+  font-size: 0.7rem; color: #4a6478; margin-bottom: 0.5rem; line-height: 1.3;
+  font-family: 'SF Mono', 'Fira Code', monospace; word-break: break-all;
+}
+.torrent-meta { font-size: 0.75rem; color: #6a7a8a; line-height: 1.6; }
+.torrent-meta span { margin-right: 0.75rem; }
+.torrent-bar {
+  height: 4px; border-radius: 2px; background: #0e1a3a;
+  margin-top: 0.5rem; overflow: hidden;
+}
+.torrent-bar-fill {
+  height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, #0066ff, #00d4ff);
+  box-shadow: 0 0 8px rgba(0, 180, 255, 0.4);
+  transition: width 0.5s ease;
+}
+
+.badge-dl    { background: rgba(0, 140, 255, 0.15); color: #00aaff; }
+.badge-seed  { background: rgba(0, 255, 140, 0.12); color: #00ff8a; }
+.badge-stall { background: rgba(255, 180, 0, 0.12); color: #ffaa00; }
+.badge-pause { background: rgba(120, 120, 120, 0.15); color: #888; }

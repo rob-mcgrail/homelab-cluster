@@ -1,0 +1,45 @@
+.panel-links { background: #0e0c06; }
+.section-title-yellow {
+  font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
+  color: #facc15; margin-bottom: 1rem;
+  text-shadow: 0 0 10px rgba(250, 204, 21, 0.25);
+}
+
+.bee {
+  position: absolute; font-size: 2.2rem;
+  filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.3));
+}
+.bee-0 { animation: buzz0 5s ease-in-out infinite; }
+.bee-1 { animation: buzz1 6.5s ease-in-out infinite; }
+@keyframes buzz0 {
+  0%   { left: 15%; top: 30%; transform: rotate(0deg); }
+  15%  { left: 30%; top: 15%; transform: rotate(8deg) translateY(-3px); }
+  30%  { left: 55%; top: 35%; transform: rotate(-5deg) translateY(2px); }
+  50%  { left: 75%; top: 20%; transform: rotate(10deg) translateY(-4px); }
+  70%  { left: 50%; top: 45%; transform: rotate(-8deg) translateY(1px); }
+  85%  { left: 25%; top: 25%; transform: rotate(5deg) translateY(-2px); }
+  100% { left: 15%; top: 30%; transform: rotate(0deg); }
+}
+@keyframes buzz1 {
+  0%   { left: 70%; top: 50%; transform: scaleX(-1) rotate(0deg); }
+  20%  { left: 45%; top: 20%; transform: scaleX(-1) rotate(-10deg) translateY(-3px); }
+  40%  { left: 20%; top: 45%; transform: scaleX(-1) rotate(6deg) translateY(2px); }
+  60%  { left: 40%; top: 55%; transform: scaleX(-1) rotate(-4deg) translateY(-2px); }
+  80%  { left: 65%; top: 30%; transform: scaleX(-1) rotate(8deg) translateY(1px); }
+  100% { left: 70%; top: 50%; transform: scaleX(-1) rotate(0deg); }
+}
+
+.service-link {
+  display: flex; align-items: center; gap: 0.75rem;
+  background: #1a1806; border: 1px solid #2a2610; border-radius: 14px;
+  padding: 1rem; margin-bottom: 0.6rem;
+  text-decoration: none; color: #d4d4d8;
+  transition: border-color 0.2s, background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.service-link:active { background: #22200a; border-color: #3a3618; }
+.service-icon { font-size: 1.6rem; flex-shrink: 0; }
+.service-info { flex: 1; min-width: 0; }
+.service-name { font-size: 0.95rem; font-weight: 600; color: #facc15; }
+.service-desc { font-size: 0.72rem; color: #7a7550; margin-top: 0.15rem; }
+.service-arrow { color: #3a3618; font-size: 1.2rem; }
