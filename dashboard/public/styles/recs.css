@@ -84,7 +84,14 @@
 .rec-btn.good:hover  { border-color: rgba(74, 222, 128, 0.4); color: #4ade80; background: rgba(74, 222, 128, 0.08); }
 .rec-btn.bad:hover   { border-color: rgba(239, 68, 68, 0.4); color: #f87171; background: rgba(239, 68, 68, 0.08); }
 .rec-btn.reset:hover { border-color: rgba(156, 163, 175, 0.4); color: #d1d5db; }
+.rec-btn.send {
+  background: rgba(255, 107, 53, 0.08); border-color: rgba(255, 107, 53, 0.25);
+  color: #ff9f5b;
+}
+.rec-btn.send:hover { background: rgba(255, 107, 53, 0.18); border-color: rgba(255, 107, 53, 0.4); color: #ffb380; }
+.rec-btn.send.sent  { background: rgba(74, 222, 128, 0.15); border-color: rgba(74, 222, 128, 0.3); color: #4ade80; }
 .rec-btn:active { transform: scale(0.97); }
+.rec-btn:disabled { opacity: 0.55; cursor: default; }
 
 .rec-status {
   display: inline-block; font-size: 0.62rem; font-weight: 700;

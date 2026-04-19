@@ -43,18 +43,18 @@ Produce EXACTLY 7 recommendations in two clearly separate groups:
 - **4 "new" recs** — films NOT in the user's Radarr library. These are
   things to acquire. (source: "new")
 - **3 "library" recs** — films the user ALREADY owns in Radarr and
-  hasn't marked as seen via this system. These are films to watch
-  tonight. Prefer titles that fit current taste signals but have been
-  overlooked. (source: "library")
+  hasn't seen yet. These are films to watch tonight. Prefer titles
+  that fit current taste signals but have been overlooked. (source:
+  "library")
 
-  IMPORTANT: the authoritative "have they watched it?" signal is the
-  rec log (seen-good / seen-bad from previous recs). Jellyfin's
-  Played flag is informational only — the user may have watched
-  something in their actual past life that Jellyfin doesn't know
-  about. So for library recs, the rule is: any Radarr title that has
-  NOT been scored seen-good or seen-bad in the rec log is a
-  candidate, regardless of Jellyfin state. If the user has already
-  seen a library film in real life, they'll mark your rec
+  A film counts as "already seen" — so DO NOT recommend it — if EITHER:
+    1. Jellyfin says UserData.Played is true (they watched it on this
+       server). Query Jellyfin per candidate.
+    2. The rec log has a "seen-good" or "seen-bad" status for it.
+
+  If both signals are negative, it's a fair candidate. The user may
+  still have seen it in their actual past life (before this server),
+  which Jellyfin wouldn't know. That's fine — they'll mark the rec
   "seen + good" or "seen + bad" and you won't pitch it again.
 
 For each, include:

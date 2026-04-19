@@ -430,7 +430,7 @@ const server = Bun.serve({
         let latestRunId = "";
         for (const e of log) {
           if (e.type === "rec") {
-            byId.set(e.id, { ...e, status: "pending" });
+            byId.set(e.id, { ...e, status: "pending", sent: false });
             if (e.runId && e.runId > latestRunId) latestRunId = e.runId;
           } else if (e.type === "status") {
             const r = byId.get(e.recId);
@@ -438,6 +438,12 @@ const server = Bun.serve({
               r.status = e.status;
               r.statusAt = e.at;
               r.statusNotes = e.notes || "";
+            }
+          } else if (e.type === "sent") {
+            const r = byId.get(e.recId);
+            if (r) {
+              r.sent = true;
+              r.sentAt = e.at;
             }
           }
         }
@@ -449,6 +455,30 @@ const server = Bun.serve({
         return Response.json(all);
       } catch {
         return Response.json([]);
+      }
+    }
+
+    {
+      const m = url.pathname.match(/^\/api\/recs\/([^/]+)\/send-to-moviebot$/);
+      if (m && req.method === "POST") {
+        try {
+          const recId = m[1];
+          const log = await readJsonl(RECS_FILE);
+          const rec = log.filter((e: any) => e.type === "rec" && e.id === recId).pop();
+          if (!rec) return new Response("rec not found", { status: 404 });
+          const prompt = `Please download ${rec.title}${rec.year ? ` (${rec.year})` : ""}.`;
+          const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          await Bun.write(`${PENDING_DIR}/${id}.txt`, prompt);
+          await appendJsonl(RECS_FILE, {
+            type: "sent",
+            recId,
+            promptId: id,
+            at: Math.floor(Date.now() / 1000),
+          });
+          return Response.json({ ok: true, promptId: id });
+        } catch {
+          return new Response("send failed", { status: 500 });
+        }
       }
     }
 

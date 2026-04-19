@@ -50,6 +50,22 @@ async function setRecStatus(recId, status) {
   } catch {}
 }
 
+async function sendToMoviebot(rec, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    const res = await fetch(`/api/recs/${encodeURIComponent(rec.id)}/send-to-moviebot`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error();
+    birdExplosion();
+    await loadRecs();
+  } catch {
+    btn.textContent = 'Failed';
+    setTimeout(() => { btn.textContent = 'Send to Movie Bot'; btn.disabled = false; }, 2500);
+  }
+}
+
 async function saveThoughts(movieId, title, year, textarea, btn) {
   const thoughts = textarea.value.trim();
   if (!thoughts) return;
@@ -120,16 +136,24 @@ function renderRecs() {
   const reviewed = recs.filter(r => r.status === 'seen-good' || r.status === 'seen-bad');
 
   const renderOne = (r) => `
-    <div class="rec-item ${r.status}" data-id="${esc(r.id)}">
+    <div class="rec-item ${r.status}" data-id="${esc(r.id)}" data-source="${esc(r.source || 'new')}">
       ${r.status !== 'pending' ? `<div class="rec-status ${r.status}">${r.status === 'seen-good' ? 'Seen · good' : 'Seen · bad'}</div>` : ''}
       <div class="rec-title">${esc(r.title)}<span class="rec-year">${r.year ? `(${r.year})` : ''}</span></div>
       <div class="rec-pitch">${esc(r.pitch || '')}</div>
       <div class="rec-meta">${esc(r.runId || '')} · ${fmtAge(r.createdAt)}</div>
       <div class="rec-actions">
-        ${r.status === 'pending'
+        ${r.status === 'pending' && (r.source || 'new') === 'new'
+          ? (r.sent
+              ? `<button class="rec-btn send sent" disabled>✓ Sent to Movie Bot</button>`
+              : `<button class="rec-btn send">Send to Movie Bot</button>`)
+          : ''}
+        ${r.status === 'pending' && !r.sent
           ? `<button class="rec-btn good" data-action="seen-good">seen + good</button>
              <button class="rec-btn bad"  data-action="seen-bad">seen + bad</button>`
-          : `<button class="rec-btn reset" data-action="pending">undo</button>`}
+          : ''}
+        ${r.status !== 'pending'
+          ? `<button class="rec-btn reset" data-action="pending">undo</button>`
+          : ''}
       </div>
     </div>
   `;
@@ -138,11 +162,11 @@ function renderRecs() {
   if (pending.length) {
     const pendingNew = pending.filter(r => (r.source || 'new') === 'new');
     const pendingLib = pending.filter(r => r.source === 'library');
-    if (pendingNew.length) {
-      sections.push(`<div class="recs-meta" style="margin-top:1rem">To download · ${pendingNew.length}</div>${pendingNew.map(renderOne).join('')}`);
-    }
     if (pendingLib.length) {
-      sections.push(`<div class="recs-meta" style="margin-top:1.25rem">Watch from your library · ${pendingLib.length}</div>${pendingLib.map(renderOne).join('')}`);
+      sections.push(`<div class="recs-meta" style="margin-top:1rem">Watch from your library · ${pendingLib.length}</div>${pendingLib.map(renderOne).join('')}`);
+    }
+    if (pendingNew.length) {
+      sections.push(`<div class="recs-meta" style="margin-top:1.25rem">To download · ${pendingNew.length}</div>${pendingNew.map(renderOne).join('')}`);
     }
   } else {
     sections.push(`<div class="recs-empty">No pending recs right now.</div>`);
@@ -153,9 +177,15 @@ function renderRecs() {
   listEl.innerHTML = sections.join('');
   wireReflection(listEl);
 
+  const recsById = new Map(recs.map(r => [r.id, r]));
   listEl.querySelectorAll('.rec-item').forEach(card => {
+    const rec = recsById.get(card.dataset.id);
     card.querySelectorAll('.rec-btn').forEach(btn => {
-      btn.addEventListener('click', () => setRecStatus(card.dataset.id, btn.dataset.action));
+      if (btn.classList.contains('send')) {
+        btn.addEventListener('click', () => rec && sendToMoviebot(rec, btn));
+      } else if (btn.dataset.action) {
+        btn.addEventListener('click', () => setRecStatus(card.dataset.id, btn.dataset.action));
+      }
     });
   });
 }
@@ -171,8 +201,7 @@ function renderWatched() {
     <div class="watched-item" data-idx="${idx}">
       <div class="watched-title">${esc(m.title)}<span class="watched-year">${m.year ? `(${m.year})` : ''}</span></div>
       <div class="watched-meta">watched ${m.watchedAt ? m.watchedAt.slice(0, 10) : '—'}</div>
-      ${m.thoughtsAt ? `<div class="watched-thoughts-ts">last saved ${fmtAge(m.thoughtsAt)}</div>` : ''}
-      <textarea class="watched-thoughts" placeholder="Thoughts on this one…">${esc(m.thoughts || '')}</textarea>
+      <textarea class="watched-thoughts" placeholder="Thoughts on this one…"></textarea>
       <button class="watched-save">Save</button>
     </div>
   `).join('');
@@ -202,6 +231,10 @@ function renderThoughts() {
 }
 
 function render() {
+  // Don't blow away the panel if the user is mid-type in any textarea
+  // inside it — the auto-poll would otherwise wipe free-form input.
+  const a = document.activeElement;
+  if (a && root && root.contains(a) && (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT')) return;
   if (filter === 'history') renderWatched();
   else if (filter === 'thoughts') renderThoughts();
   else renderRecs();
