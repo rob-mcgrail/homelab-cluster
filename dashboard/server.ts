@@ -136,25 +136,29 @@ const server = Bun.serve({
           );
         } catch {}
 
-        const all = [...pending, ...done].slice(0, 10);
+        const all = [...pending, ...done].slice(0, 15);
         return Response.json(all);
       } catch {
         return Response.json([]);
       }
     }
 
-    if (req.method === "GET" && url.pathname === "/api/triage-latest") {
+    if (req.method === "GET" && url.pathname === "/api/triage-runs") {
       try {
         const files = (await readdir(COMPLETED_TRIAGE_DIR))
           .filter((f) => f.endsWith(".md"))
           .sort()
-          .reverse();
-        if (!files.length) return Response.json(null);
-        const latest = files[0];
-        const content = await Bun.file(`${COMPLETED_TRIAGE_DIR}/${latest}`).text();
-        return Response.json({ id: latest.replace(/\.md$/, ""), content });
+          .reverse()
+          .slice(0, 15);
+        const runs = await Promise.all(
+          files.map(async (f) => ({
+            id: f.replace(/\.md$/, ""),
+            content: await Bun.file(`${COMPLETED_TRIAGE_DIR}/${f}`).text(),
+          }))
+        );
+        return Response.json(runs);
       } catch {
-        return Response.json(null);
+        return Response.json([]);
       }
     }
 
@@ -164,6 +168,7 @@ const server = Bun.serve({
         const torrents: any[] = await res.json();
         const mapped = torrents.map((t) => ({
           name: cleanTitle(t.name),
+          sourceFile: t.content_path ? t.content_path.split("/").pop() : t.name,
           state: t.state,
           category: categorise(t.state),
           progress: Math.round(t.progress * 100),
@@ -213,6 +218,21 @@ const server = Bun.serve({
           diskFree = Number(s.bavail * s.bsize);
         } catch {}
 
+        // qBit aggregate speeds / session totals
+        let qbit: any = null;
+        try {
+          const tr = await fetch(`${QB_URL}/api/v2/transfer/info`);
+          if (tr.ok) {
+            const j: any = await tr.json();
+            qbit = {
+              dlSpeed: j.dl_info_speed || 0,
+              upSpeed: j.up_info_speed || 0,
+              dlSession: j.dl_info_data || 0,
+              upSession: j.up_info_data || 0,
+            };
+          }
+        } catch {}
+
         return Response.json({
           load: load.map((l) => l.toFixed(2)),
           cores,
@@ -227,6 +247,7 @@ const server = Bun.serve({
             used: diskTotal - diskFree,
             pct: diskTotal ? Math.round(((diskTotal - diskFree) / diskTotal) * 100) : 0,
           },
+          qbit,
         });
       } catch {
         return Response.json({ error: true });
@@ -267,6 +288,7 @@ const server = Bun.serve({
                 audioCodec: audioSrc?.Codec || "",
                 resolution: videoSrc ? (videoSrc.Height ? `${videoSrc.Height}p` : "") : "",
                 audioChannels: audioSrc?.Channels || null,
+                file: item.Path ? item.Path.split("/").pop() : "",
               },
               output: ti ? {
                 container: ti.Container || "",

@@ -28,14 +28,32 @@ For a torrent that is:
 - > 24h old AND
 - < 2 connected seeds (or zero download speed for many hours)
 
-→ Pause it in qBit, tag it "triage-early-stall", then trigger a fresh
-  search in the owning arr (Radarr MoviesSearch by movieId, Sonarr
-  SeriesSearch/EpisodeSearch). Do NOT add a blocklist/exclusion entry
-  — we want the arr free to re-pick the same release if it's best.
+→ Pause it in qBit, tag it "triage-early-stall:<unix_epoch_now>",
+  then trigger a fresh search in the owning arr (Radarr MoviesSearch
+  by movieId, Sonarr SeriesSearch/EpisodeSearch). Do NOT add a
+  blocklist/exclusion entry — we want the arr free to re-pick the
+  same release if it's best.
+
+### Follow up on early-stall torrents
+Early-stall gives the release one chance to recover via a re-search.
+If nothing materialised, we escalate rather than leave the torrent
+rotting in paused-forever state. For any torrent tagged
+"triage-early-stall:<epoch>":
+- If the epoch is > 48h in the past AND progress is still < 5%:
+  - If the arr still has a queue entry for this torrent:
+    DELETE /api/v3/queue/{id}?removeFromClient=true&blocklist=true&skipRedownload=false
+    (blocklist=true — this specific release is dead; force a different one).
+  - If no arr queue entry exists (orphan): delete directly from qBit
+    with deleteFiles=true.
+- Otherwise leave alone — the re-search may still be cooking.
+
+Legacy tags without epoch ("triage-early-stall" with no timestamp)
+should be treated as though the epoch is the torrent's last_activity
+or added_on, whichever is most recent.
 
 ### Pause mostly-done stalls (do NOT re-search)
 For a torrent that is:
-- 50-95% progress AND
+- ≥ 50% progress (no upper cap — 95%, 99%, 99.9% all qualify if stuck) AND
 - has been stuck for > 24h (no meaningful download speed, few/no seeds)
 
 → Pause it in qBit, tag it "triage-paused:<unix_epoch_now>", and also
@@ -56,12 +74,12 @@ For any torrent currently paused with the tag "triage-paused:<epoch>":
 This lets a torrent rotate between "try" and "rest" states.
 
 ### Escalate long-stuck high-progress torrents (remove + re-search)
-Some torrents stall at 80-95% for weeks with no realistic chance of
+Some torrents stall at 80-99% for weeks with no realistic chance of
 finishing. The park/retry cycle should get a full week of chances
 first. For any torrent with a "triage-first-parked:<epoch>" tag
 where:
 - epoch is > 7 days in the past AND
-- progress is still < 95% (i.e., it genuinely hasn't advanced)
+- torrent still hasn't completed (progress < 100%)
 
 → Remove it via the owning arr's queue API:
   Radarr: DELETE /api/v3/queue/{id}?removeFromClient=true&blocklist=true&skipRedownload=false
@@ -138,6 +156,7 @@ The structure:
 
   Valid actions: "paused + re-searched", "parked (mostly-done)",
   "resumed after rest", "re-paused after retry",
+  "early-stall follow-up — removed + blocklisted",
   "auto-retired — removed + blocklisted + re-searched",
   "cleaned up missingFiles orphan", "priority-boosted".
 

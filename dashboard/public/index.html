@@ -22,7 +22,7 @@
 
     .viewport {
       display: flex;
-      width: 700vw;
+      width: 600vw;
       height: 100dvh;
     }
     .viewport.animating {
@@ -46,8 +46,7 @@
       .desktop-grid #panelMain      { grid-column: 1; grid-row: 1; }
       .desktop-grid .panel-torrents { grid-column: 1; grid-row: 2; }
       .desktop-grid .panel-history  { grid-column: 2; grid-row: 1 / 3; }
-      .desktop-grid .panel-status   { grid-column: 3; grid-row: 1; }
-      .desktop-grid .panel-streams  { grid-column: 3; grid-row: 2; }
+      .desktop-grid .panel-status   { grid-column: 3; grid-row: 1 / 3; }
       .desktop-grid .panel-pihole   { grid-column: 4; grid-row: 1; }
       .desktop-grid .panel-links    { grid-column: 4; grid-row: 2; }
       .desktop-grid .panel {
@@ -62,7 +61,6 @@
       .desktop-grid .panel-history  { border-color: #1a3a2a; }
       .desktop-grid .panel-torrents { border-color: #0e1a3a; }
       .desktop-grid .panel-status   { border-color: #1e1a2e; position: relative; }
-      .desktop-grid .panel-streams  { border-color: #2a0e1a; position: relative; }
       .desktop-grid .panel-pihole   { border-color: #2a0e0e; position: relative; }
       .desktop-grid .panel-links    { border-color: #2a2610; }
       .desktop-grid .panel-blank    { border-color: #1e1e2e; background: #08080e; }
@@ -234,13 +232,19 @@
       padding: 1rem; margin-bottom: 0.75rem;
     }
     .history-prompt { font-size: 0.85rem; font-weight: 600; color: #4ade80; margin-bottom: 0.6rem; line-height: 1.4; }
-    .history-result { font-size: 0.8rem; color: #a1a1aa; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .history-result { font-size: 0.8rem; color: #a1a1aa; line-height: 1.5; word-break: break-word; }
     .history-result p { margin: 0.4rem 0; }
     .history-result h1, .history-result h2, .history-result h3 {
       font-size: 0.85rem; color: #a1a1aa; margin: 0.6rem 0 0.3rem; font-weight: 600;
     }
     .history-result ul, .history-result ol { padding-left: 1.2rem; margin: 0.3rem 0; }
     .history-result li { margin: 0.15rem 0; }
+    /* Collapse paragraph margins inside list items so "loose" markdown lists don't balloon */
+    .history-result li > p { margin: 0; }
+    .history-result li > p + p { margin-top: 0.2rem; }
+    /* Trim leading/trailing margin so the card hugs its content */
+    .history-result > *:first-child { margin-top: 0; }
+    .history-result > *:last-child { margin-bottom: 0; }
     .history-result code {
       background: #0d2015; padding: 0.1rem 0.3rem; border-radius: 4px;
       font-size: 0.75rem; font-family: 'SF Mono', 'Fira Code', monospace;
@@ -256,58 +260,29 @@
     .history-item.pending { border-color: #2a1a3a; background: #120e1a; }
     .history-item.pending .history-prompt { color: #c084fc; }
     .history-waiting { font-size: 0.8rem; color: #8b6adf; font-style: italic; }
+    .history-filters { display: flex; gap: 0.4rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+    .history-filters .filter-btn {
+      background: #0a1a10; border-color: #1a3a2a; color: #4a8a6a;
+    }
+    .history-filters .filter-btn.active {
+      background: rgba(74, 222, 128, 0.12); border-color: rgba(74, 222, 128, 0.3); color: #4ade80;
+    }
 
-    /* ---- triage (orange) — newest triage run at top of history ---- */
-    .triage-item {
-      background: #1a0d05; border: 1px solid #5c3510; border-radius: 14px;
-      padding: 0.9rem; margin-bottom: 0.75rem;
-    }
-    .triage-label {
-      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em;
-      color: #fb923c; margin-bottom: 0.5rem; text-transform: uppercase;
-    }
-    .triage-result { font-size: 0.78rem; color: #fdba74; line-height: 1.5; }
-    .triage-result > *:first-child { margin-top: 0; }
-    .triage-result > *:last-child  { margin-bottom: 0; }
-    .triage-result p { margin: 0.35rem 0; }
-    .triage-result h1 {
-      font-size: 0.95rem; color: #fb923c; margin: 0 0 0.5rem; font-weight: 700;
-    }
-    .triage-result h2 {
-      font-size: 0.82rem; color: #fb923c; margin: 0.85rem 0 0.25rem; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.05em;
-    }
-    .triage-result h3 {
-      font-size: 0.78rem; color: #fdba74; margin: 0.6rem 0 0.2rem; font-weight: 600;
-    }
-    .triage-result ul, .triage-result ol { padding-left: 1.1rem; margin: 0.25rem 0; }
-    .triage-result li { margin: 0.12rem 0; }
-    .triage-result strong { color: #fed7aa; }
-    .triage-result code {
-      background: #2a1505; padding: 0.08rem 0.28rem; border-radius: 4px;
-      font-size: 0.7rem; font-family: 'SF Mono', 'Fira Code', monospace; color: #fed7aa;
-    }
-    .triage-result em { color: #9a5820; font-style: italic; }
-
-    /* Table scrolls horizontally inside its own wrapper so long rows don't squeeze cells */
-    .triage-result .tbl-wrap {
+    /* Scrollable wrapper for any markdown tables (defensive — triage output uses bullets) */
+    .history-result .tbl-wrap {
       overflow-x: auto; margin: 0.4rem -0.3rem; padding: 0 0.3rem;
-      scrollbar-width: thin; scrollbar-color: #5c3510 transparent;
+      scrollbar-width: thin; scrollbar-color: #1a3a2a transparent;
     }
-    .triage-result .tbl-wrap::-webkit-scrollbar { height: 4px; }
-    .triage-result .tbl-wrap::-webkit-scrollbar-thumb { background: #5c3510; border-radius: 2px; }
-    .triage-result table {
-      width: auto; min-width: 100%; border-collapse: collapse;
-      font-size: 0.72rem;
-    }
-    .triage-result th, .triage-result td {
+    .history-result .tbl-wrap::-webkit-scrollbar { height: 4px; }
+    .history-result .tbl-wrap::-webkit-scrollbar-thumb { background: #1a3a2a; border-radius: 2px; }
+    .history-result table { width: auto; min-width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    .history-result th, .history-result td {
       text-align: left; padding: 0.35rem 0.5rem;
-      border-bottom: 1px solid #3a2510; vertical-align: top;
-      white-space: nowrap;
+      border-bottom: 1px solid #1a3a2a; vertical-align: top; white-space: nowrap;
     }
-    .triage-result td:last-child { white-space: normal; min-width: 14rem; }
-    .triage-result th {
-      color: #fb923c; font-weight: 600; text-transform: uppercase;
+    .history-result td:last-child { white-space: normal; min-width: 14rem; }
+    .history-result th {
+      color: #4ade80; font-weight: 600; text-transform: uppercase;
       font-size: 0.65rem; letter-spacing: 0.05em;
     }
 
@@ -350,7 +325,11 @@
       background: #0a0e1a; border: 1px solid #0e1a3a; border-radius: 14px;
       padding: 1rem; margin-bottom: 0.75rem;
     }
-    .torrent-name { font-size: 0.9rem; font-weight: 600; color: #00d4ff; margin-bottom: 0.5rem; line-height: 1.3; }
+    .torrent-name { font-size: 0.9rem; font-weight: 600; color: #00d4ff; margin-bottom: 0.2rem; line-height: 1.3; }
+    .torrent-source {
+      font-size: 0.7rem; color: #4a6478; margin-bottom: 0.5rem; line-height: 1.3;
+      font-family: 'SF Mono', 'Fira Code', monospace; word-break: break-all;
+    }
     .torrent-meta { font-size: 0.75rem; color: #6a7a8a; line-height: 1.6; }
     .torrent-meta span { margin-right: 0.75rem; }
     .torrent-bar {
@@ -468,61 +447,33 @@
     .service-desc { font-size: 0.72rem; color: #7a7550; margin-top: 0.15rem; }
     .service-arrow { color: #3a3618; font-size: 1.2rem; }
 
-    /* ---- streams (pink/rose) ---- */
-    .panel-streams { background: #0e0610; position: relative; }
-    .section-title-pink {
-      font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
-      color: #f472b6; margin-bottom: 1rem;
-      text-shadow: 0 0 10px rgba(244, 114, 182, 0.3);
-    }
-    .jelly-zone {
-      position: absolute; inset: 0;
-      overflow: hidden; pointer-events: none; z-index: 0;
-    }
-    .panel-streams .panel-inner { position: relative; z-index: 1; }
-    .jelly {
-      position: absolute; user-select: none; line-height: 1;
-      filter: drop-shadow(0 0 14px rgba(244, 114, 182, 0.35));
-      opacity: 0.7;
-    }
-    .jelly-0 { font-size: 2.5rem; animation: jellyDrift0 11s ease-in-out infinite; }
-    .jelly-1 { font-size: 1.8rem; animation: jellyDrift1 14s ease-in-out infinite; opacity: 0.5; }
-    @keyframes jellyDrift0 {
-      0%   { left: 10%; top: 20%; transform: rotate(0deg); }
-      25%  { left: 60%; top: 12%; transform: rotate(-6deg) translateY(-4px); }
-      50%  { left: 75%; top: 55%; transform: rotate(4deg) translateY(2px); }
-      75%  { left: 25%; top: 70%; transform: rotate(-3deg) translateY(-3px); }
-      100% { left: 10%; top: 20%; transform: rotate(0deg); }
-    }
-    @keyframes jellyDrift1 {
-      0%   { left: 70%; top: 75%; transform: rotate(0deg); }
-      20%  { left: 30%; top: 85%; transform: rotate(5deg) translateY(-2px); }
-      40%  { left: 15%; top: 50%; transform: rotate(-4deg) translateY(3px); }
-      60%  { left: 45%; top: 25%; transform: rotate(6deg) translateY(-3px); }
-      80%  { left: 80%; top: 40%; transform: rotate(-2deg) translateY(2px); }
-      100% { left: 70%; top: 75%; transform: rotate(0deg); }
+    /* ---- streams (inline on server panel — purple-tinted to match) ---- */
+    .streams-inline { margin-bottom: 1rem; }
+    .streams-inline:empty { display: none; }
+    .streams-inline-title {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
+      color: #c084fc; margin-bottom: 0.5rem; text-transform: uppercase;
     }
     .stream-card {
-      background: #1a0a14; border: 1px solid #2a0e1a; border-radius: 14px;
-      padding: 1rem; margin-bottom: 0.75rem;
+      background: #120d1e; border: 1px solid #2a1e3a; border-radius: 14px;
+      padding: 0.9rem; margin-bottom: 0.6rem;
     }
-    .stream-title { font-size: 0.95rem; font-weight: 600; color: #f472b6; margin-bottom: 0.4rem; line-height: 1.3; }
-    .stream-who { font-size: 0.75rem; color: #b06088; margin-bottom: 0.6rem; }
-    .stream-meta { font-size: 0.72rem; color: #8a5068; line-height: 1.6; }
+    .stream-title { font-size: 0.9rem; font-weight: 600; color: #c084fc; margin-bottom: 0.35rem; line-height: 1.3; }
+    .stream-who { font-size: 0.72rem; color: #8b6adf; margin-bottom: 0.55rem; }
+    .stream-meta { font-size: 0.7rem; color: #7a6a9a; line-height: 1.6; }
     .stream-meta div { margin-bottom: 0.15rem; }
-    .stream-meta .label { color: #6a3a50; display: inline-block; min-width: 68px; }
+    .stream-meta .label { color: #5a4a7a; display: inline-block; min-width: 68px; }
     .stream-bar {
-      height: 4px; border-radius: 2px; background: #2a0e1a;
+      height: 4px; border-radius: 2px; background: #2a1e3a;
       margin-top: 0.5rem; overflow: hidden;
     }
     .stream-bar-fill {
       height: 100%; border-radius: 2px;
-      background: linear-gradient(90deg, #be185d, #f472b6);
-      box-shadow: 0 0 8px rgba(244, 114, 182, 0.35);
+      background: linear-gradient(90deg, #6d28d9, #c084fc);
+      box-shadow: 0 0 8px rgba(192, 132, 252, 0.35);
       transition: width 0.5s ease;
     }
-    .stream-empty { color: #4a2a3a; text-align: center; margin-top: 3rem; font-size: 0.9rem; }
-    .badge-transcode { background: rgba(244, 114, 182, 0.15); color: #f472b6; }
+    .badge-transcode { background: rgba(192, 132, 252, 0.15); color: #c084fc; }
     .badge-direct { background: rgba(74, 222, 128, 0.12); color: #4ade80; }
 
     /* ---- pihole (red/skulls) ---- */
@@ -588,8 +539,12 @@
       <div class="panel-inner">
         <div class="fish-zone"><div class="fish critter">🐟</div></div>
         <div class="section-title-green">RECENT</div>
+        <div class="history-filters" id="historyFilters">
+          <button class="filter-btn active" data-hfilter="requests">Requests</button>
+          <button class="filter-btn" data-hfilter="triage">Triage</button>
+        </div>
         <div id="historyList"></div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div></div>
       </div>
     </div>
 
@@ -606,7 +561,7 @@
           <button class="send-btn" id="send">GET TO IT</button>
           <div class="status" id="status"></div>
         </div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div></div>
       </div>
     </div>
 
@@ -622,34 +577,22 @@
           <button class="filter-btn" data-filter="queued">Queued</button>
         </div>
         <div id="torrentList"></div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div></div>
       </div>
     </div>
 
-    <!-- page 3: server status -->
+    <!-- page 3: server status (includes Now Playing at top when active) -->
     <div class="panel panel-status scrollable" id="panelStatus" style="position:relative">
       <div class="bug-zone" id="bugZone"></div>
       <div class="panel-inner">
         <div class="section-title-purple" style="padding-top:1rem">SERVER</div>
+        <div id="streamsList" class="streams-inline"></div>
         <div id="statusCards"></div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div></div>
       </div>
     </div>
 
-    <!-- page 4: jellyfin streams -->
-    <div class="panel panel-streams scrollable" id="panelStreams">
-      <div class="jelly-zone">
-        <div class="jelly critter jelly-0">🪼</div>
-        <div class="jelly critter jelly-1">🪼</div>
-      </div>
-      <div class="panel-inner">
-        <div class="section-title-pink" style="padding-top:1rem">NOW PLAYING</div>
-        <div id="streamsList"></div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
-      </div>
-    </div>
-
-    <!-- page 5: pihole clients -->
+    <!-- page 4: pihole clients -->
     <div class="panel panel-pihole scrollable" id="panelPihole">
       <div class="spooky-zone">
         <div class="spooky critter spooky-tl">💀</div>
@@ -660,11 +603,11 @@
       <div class="panel-inner">
         <div class="section-title-red" style="padding-top:1rem">CLIENTS</div>
         <div id="piholeList"></div>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div></div>
       </div>
     </div>
 
-    <!-- page 6: service links -->
+    <!-- page 5: service links -->
     <div class="panel panel-links scrollable" id="panelLinks">
       <div class="panel-inner">
         <div class="bee-zone">
@@ -712,7 +655,7 @@
           <div class="service-info"><div class="service-name">Pi-hole</div><div class="service-desc">Network-wide DNS ad-blocker</div></div>
           <div class="service-arrow">›</div>
         </a>
-        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div><div class="dot" data-p="6"></div></div>
+        <div class="dots"><div class="dot" data-p="0"></div><div class="dot" data-p="1"></div><div class="dot" data-p="2"></div><div class="dot" data-p="3"></div><div class="dot" data-p="4"></div><div class="dot" data-p="5"></div></div>
       </div>
     </div>
   </div>
@@ -729,7 +672,7 @@
     const historyList = document.getElementById('historyList');
     const torrentList = document.getElementById('torrentList');
     const allDots = document.querySelectorAll('.dot');
-    const PAGES = 7;
+    const PAGES = 6;
     const statusCards = document.getElementById('statusCards');
     const streamsList = document.getElementById('streamsList');
     const piholeList = document.getElementById('piholeList');
@@ -762,18 +705,16 @@
       updateDots();
       if (p === 0) loadHistory();
       if (p === 2) loadTorrents();
-      if (p === 3) loadStatus();
-      if (p === 4) loadStreams();
-      if (p === 5) loadPiholeClients();
+      if (p === 3) { loadStatus(); loadStreams(); }
+      if (p === 4) loadPiholeClients();
     }
 
     function onPageLoad(p) {
       if (p === 0) loadHistory();
       else if (p === 2) loadTorrents();
-      else if (p === 3) { loadStatus(); spawnBug(); }
-      else if (p === 4) loadStreams();
-      else if (p === 5) loadPiholeClients();
-      else if (p === 6) spawnBee();
+      else if (p === 3) { loadStatus(); loadStreams(); spawnBug(); }
+      else if (p === 4) loadPiholeClients();
+      else if (p === 5) spawnBee();
     }
 
     // ---- bug simulation (requestAnimationFrame) ----
@@ -1027,28 +968,41 @@
     }
 
     // ---- history ----
-    async function loadHistory() {
-      try {
-        const [histRes, triageRes] = await Promise.all([
-          fetch('/api/history'),
-          fetch('/api/triage-latest'),
-        ]);
-        const items = await histRes.json();
-        const triage = await triageRes.json();
+    let historyFilter = 'requests';
+    let cachedRequests = null;
+    let cachedTriage = null;
 
-        const triageHtml = triage && triage.content
-          ? `<div class="triage-item">
-              <div class="triage-label">Latest triage run</div>
-              <div class="triage-result">${renderTriageMd(triage.content)}</div>
-            </div>`
-          : '';
+    document.querySelectorAll('#historyFilters .filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#historyFilters .filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        historyFilter = btn.dataset.hfilter;
+        renderHistory();
+      });
+    });
 
-        if (!items.length && !triageHtml) {
+    function renderHistory() {
+      if (historyFilter === 'triage') {
+        const runs = cachedTriage;
+        if (!runs) { historyList.innerHTML = ''; return; }
+        if (!runs.length) {
+          historyList.innerHTML = '<div class="history-empty">No triage runs yet.</div>';
+          return;
+        }
+        historyList.innerHTML = runs.map(r => `
+          <div class="history-item">
+            <div class="history-prompt">${esc(r.id)}</div>
+            <div class="history-result">${renderTriageMd(r.content)}</div>
+          </div>
+        `).join('');
+      } else {
+        const items = cachedRequests;
+        if (!items) { historyList.innerHTML = ''; return; }
+        if (!items.length) {
           historyList.innerHTML = '<div class="history-empty">No prompts yet.</div>';
           return;
         }
-
-        const historyHtml = items.map(item => `
+        historyList.innerHTML = items.map(item => `
           <div class="history-item${item.pending ? ' pending' : ''}">
             <div class="history-prompt">${esc(item.prompt)}</div>
             ${item.pending
@@ -1058,8 +1012,18 @@
                 : `<div class="history-pending">No response recorded.</div>`}
           </div>
         `).join('');
+      }
+    }
 
-        historyList.innerHTML = triageHtml + historyHtml;
+    async function loadHistory() {
+      try {
+        const [histRes, triageRes] = await Promise.all([
+          fetch('/api/history'),
+          fetch('/api/triage-runs'),
+        ]);
+        cachedRequests = await histRes.json();
+        cachedTriage = await triageRes.json();
+        renderHistory();
       } catch {
         historyList.innerHTML = '<div class="history-empty">Could not load history.</div>';
       }
@@ -1069,10 +1033,10 @@
     let allTorrents = [];
     let activeFilter = 'downloading';
 
-    const filterBtns = document.querySelectorAll('.filter-btn');
-    filterBtns.forEach(btn => {
+    const torrentFilterBtns = document.querySelectorAll('#torrentFilters .filter-btn');
+    torrentFilterBtns.forEach(btn => {
       btn.addEventListener('click', () => {
-        filterBtns.forEach(b => b.classList.remove('active'));
+        torrentFilterBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         activeFilter = btn.dataset.filter;
         renderTorrents();
@@ -1097,6 +1061,7 @@
       torrentList.innerHTML = filtered.map(t => `
         <div class="torrent-item">
           <div class="torrent-name">${esc(t.name)}</div>
+          ${t.sourceFile && t.sourceFile !== t.name ? `<div class="torrent-source">${esc(t.sourceFile)}</div>` : ''}
           <div class="torrent-meta">
             <span class="badge ${badgeCls(t.category)}">${t.category}</span>
             <span>${t.downloaded} / ${t.size}</span>
@@ -1125,6 +1090,13 @@
       if (b < 1073741824) return (b / 1048576).toFixed(0) + ' MB';
       if (b < 1099511627776) return (b / 1073741824).toFixed(1) + ' GB';
       return (b / 1099511627776).toFixed(2) + ' TB';
+    }
+    // For speeds / smaller rates: KB below 1 MB, MB.x below 1 GB, else GB.
+    function fmtRate(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b / 1024).toFixed(0) + ' KB';
+      if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+      return (b / 1073741824).toFixed(2) + ' GB';
     }
 
     function barClass(pct) {
@@ -1167,6 +1139,13 @@
             <div class="stat-detail">${fmtBytes(s.disk.used)} / ${fmtBytes(s.disk.total)}</div>
             <div class="stat-bar"><div class="${barClass(s.disk.pct)}" style="width:${s.disk.pct}%"></div></div>
           </div>
+          ${s.qbit ? `
+          <div class="stat-card">
+            <div class="stat-label">Torrents — now</div>
+            <div class="stat-value">${fmtRate(s.qbit.dlSpeed)}/s <small style="opacity:0.6">↓</small></div>
+            <div class="stat-detail">↑ ${fmtRate(s.qbit.upSpeed)}/s</div>
+            <div class="stat-detail" style="margin-top:0.4rem">session: ${fmtBytes(s.qbit.dlSession)} down · ${fmtBytes(s.qbit.upSession)} up</div>
+          </div>` : ''}
         `;
       } catch {
         statusCards.innerHTML = '<div class="torrent-empty">Could not load status.</div>';
@@ -1215,6 +1194,7 @@
           <div class="stream-meta">
             <div>${streamBadge(s)} ${out ? '<span style="color:#b06088">' + esc(reasons) + '</span>' : ''}</div>
             <div><span class="label">source</span>${esc(srcLine)}</div>
+            ${src.file ? `<div><span class="label">file</span>${esc(src.file)}</div>` : ''}
             ${out ? `<div><span class="label">output</span>${esc(outLine)}</div>` : ''}
             <div><span class="label">subs</span>${esc(sub)}</div>
             <div><span class="label">position</span>${fmtTime(s.positionMs)} / ${fmtTime(s.durationMs)}</div>
@@ -1227,13 +1207,14 @@
       try {
         const res = await fetch('/api/jellyfin-sessions');
         const items = await res.json();
+        // Leave the card empty when nothing is playing — CSS `:empty` hides it.
         if (!items.length) {
-          streamsList.innerHTML = '<div class="stream-empty">Nothing playing right now.</div>';
+          streamsList.innerHTML = '';
           return;
         }
         streamsList.innerHTML = items.map(renderStream).join('');
       } catch {
-        streamsList.innerHTML = '<div class="stream-empty">Could not load streams.</div>';
+        streamsList.innerHTML = '';
       }
     }
 
@@ -1380,7 +1361,6 @@
       document.getElementById('panelMain'),
       document.getElementById('panelTorrents'),
       document.getElementById('panelStatus'),
-      document.getElementById('panelStreams'),
       document.getElementById('panelPihole'),
       document.getElementById('panelLinks'),
     ];
@@ -1391,8 +1371,8 @@
       const desktop = window.innerWidth >= 900;
       if (desktop && currentLayout !== 'desktop') {
         currentLayout = 'desktop';
-        // grid: col1=[moviebot, downloads] col2=[history full] col3=[server, streams] col4=[pihole, services]
-        [panels[1], panels[2], panels[0], panels[3], panels[4], panels[5], panels[6]]
+        // grid: col1=[moviebot, downloads] col2=[history full] col3=[server (full height)] col4=[pihole, services]
+        [panels[1], panels[2], panels[0], panels[3], panels[4], panels[5]]
           .forEach(p => desktopGrid.appendChild(p));
         // load all data immediately
         loadHistory(); loadTorrents(); loadStatus(); loadStreams(); loadPiholeClients();
