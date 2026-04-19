@@ -1,14 +1,14 @@
 const DOTS = 6;
 
 const SERVICES = [
-  { host: 'jellyfin',                    icon: '🎬', name: 'Jellyfin',                    desc: 'Media player & library' },
-  { host: 'jellyfin-force-transcode',    icon: '🔄', name: 'Jellyfin (Force Transcode)', desc: 'HEVC-stripped proxy for Android TV' },
-  { host: 'sonarr',                      icon: '📺', name: 'Sonarr',                      desc: 'TV show management' },
-  { host: 'radarr',                      icon: '🎞️', name: 'Radarr',                      desc: 'Movie management' },
-  { host: 'prowlarr',                    icon: '🔍', name: 'Prowlarr',                    desc: 'Indexer management' },
-  { host: 'qbittorrent',                 icon: '⬇️', name: 'qBittorrent',                 desc: 'Download client' },
-  { host: 'bazarr',                      icon: '💬', name: 'Bazarr',                      desc: 'Subtitle management' },
-  { host: 'pihole',                      icon: '🛡️', name: 'Pi-hole',                     desc: 'Network-wide DNS ad-blocker', path: '/admin/' },
+  { host: 'jellyfin',                 name: 'Jellyfin',                    desc: 'Media player & library' },
+  { host: 'jellyfin-force-transcode', name: 'Jellyfin — force transcode',  desc: 'HEVC-stripped proxy for Android TV' },
+  { host: 'sonarr',                   name: 'Sonarr',                      desc: 'TV show management' },
+  { host: 'radarr',                   name: 'Radarr',                      desc: 'Movie management' },
+  { host: 'prowlarr',                 name: 'Prowlarr',                    desc: 'Indexer management' },
+  { host: 'qbittorrent',              name: 'qBittorrent',                 desc: 'Download client' },
+  { host: 'bazarr',                   name: 'Bazarr',                      desc: 'Subtitle management' },
+  { host: 'pihole',                   name: 'Pi-hole',                     desc: 'Network-wide DNS ad-blocker', path: '/admin/' },
 ];
 
 const DOMAIN = 'office-computer-online-worldwide.org';
@@ -45,9 +45,11 @@ function mount() {
   root.id = 'panelLinks';
   const links = SERVICES.map(s => `
     <a class="service-link" href="https://${s.host}.${DOMAIN}${s.path || ''}" target="_blank" rel="noopener noreferrer">
-      <div class="service-icon">${s.icon}</div>
-      <div class="service-info"><div class="service-name">${s.name}</div><div class="service-desc">${s.desc}</div></div>
-      <div class="service-arrow">›</div>
+      <div class="service-info">
+        <div class="service-name">${s.name}</div>
+        <div class="service-host">${s.host}.${DOMAIN}</div>
+      </div>
+      <div class="service-arrow">→</div>
     </a>
   `).join('');
   root.innerHTML = `

@@ -350,7 +350,7 @@ const server = Bun.serve({
           map.set(key, cur);
         }
         const rows = Array.from(map.values())
-          .filter((r) => r.ip !== "127.0.0.1" && r.ip !== "::1" && r.name !== "localhost")
+          .filter((r) => r.ip !== "127.0.0.1" && r.ip !== "::1" && r.ip !== "192.168.1.1" && r.name !== "localhost")
           .map((r) => ({
             ...r,
             total: r.permitted + r.blocked,
