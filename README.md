@@ -206,8 +206,6 @@ The dashboard is a mobile-first web app at `https://www.yourdomain.org` with 7 s
 6. **Services** (yellow, bees) — quick links to all service dashboards
 7. **Blocks / Clients** (red, skulls + bats) — Pi-hole activity. Default is **Blocks**: the top 20 most-blocked domains over the last 24h. Set `PER_CLIENT_PIHOLE_VIEW=true` on the dashboard service to switch to **Clients** (per-client allowed/blocked counts). Per-client only makes sense if Pi-hole can see individual client IPs — i.e. when Pi-hole is also the DHCP server. Under the default topology (router does DHCP, DNS is proxied through a single upstream IP), all queries look like they come from the router, so Blocks is the useful view.
 
-On desktop (900px+), all panels display in a 4-column grid with auto-polling.
-
 ## Storage
 
 Data lives on a drive pool via mergerfs. See `CLAUDE.md` for details on the storage setup and how to add drives.
