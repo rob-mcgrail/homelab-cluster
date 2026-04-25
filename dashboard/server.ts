@@ -449,20 +449,51 @@ const server = Bun.serve({
     }
 
     {
-      // Live HD MJPEG via go2rtc (transcodes the camera's H.265 main
-      // stream → MJPEG on demand). Long-lived HTTP connection, browser
-      // renders directly via <img src=…>. Resolution is full sensor
-      // output (5120×1552 for these Reolink F-series).
-      const m = url.pathname.match(/^\/api\/camera-stream\/([a-z_]+)$/);
-      if (m && req.method === "GET") {
-        const valid = new Set(["front_door", "deck"]);
-        if (!valid.has(m[1])) return new Response("bad slug", { status: 404 });
+      // Live video streaming via go2rtc. Three endpoints:
+      //   /api/camera-preview/<cam>  — MJPEG of the SD sub stream
+      //                                (1920×576) for the always-on
+      //                                dashboard tile <img>. Cheap.
+      //   /api/camera-stream/<cam>   — MJPEG of the HD main stream
+      //                                (5120×1552). Legacy <img>
+      //                                fallback path.
+      //   /api/camera-mp4/<cam>      — Fragmented H.264 MP4 of the HD
+      //                                main stream for <video> + MSE.
+      //                                Used by the fullscreen modal.
+      //                                No per-frame JPEG re-encode —
+      //                                much lighter than MJPEG.
+      // All paths transcode through Intel VAAPI on the iGPU.
+      const valid = new Set(["front_door", "deck"]);
+      const mjpeg = url.pathname.match(/^\/api\/camera-(preview|stream)\/([a-z_]+)$/);
+      if (mjpeg && req.method === "GET") {
+        if (!valid.has(mjpeg[2])) return new Response("bad slug", { status: 404 });
+        const src = mjpeg[1] === "preview" ? `${mjpeg[2]}_sub` : mjpeg[2];
         try {
-          const r = await fetch(`http://go2rtc:1984/api/stream.mjpeg?src=${m[1]}`);
+          const r = await fetch(`http://go2rtc:1984/api/stream.mjpeg?src=${src}`);
           if (!r.ok || !r.body) return new Response("go2rtc call failed", { status: 502 });
           return new Response(r.body, {
             headers: {
               "Content-Type": r.headers.get("content-type") || "multipart/x-mixed-replace",
+              "Cache-Control": "no-store",
+            },
+          });
+        } catch {
+          return new Response("go2rtc error", { status: 502 });
+        }
+      }
+      const mp4 = url.pathname.match(/^\/api\/camera-mp4\/([a-z_]+)$/);
+      if (mp4 && req.method === "GET") {
+        if (!valid.has(mp4[1])) return new Response("bad slug", { status: 404 });
+        try {
+          // Use the SUB stream (H.264 1920×576 25fps native — no codec
+          // transcoding required, go2rtc just packages packets into
+          // fragmented MP4). This dodges the VAAPI HEVC decode quirk
+          // that plagues the main stream's H.264 transcode path, and
+          // costs effectively zero CPU.
+          const r = await fetch(`http://go2rtc:1984/api/stream.mp4?src=${mp4[1]}_sub`);
+          if (!r.ok || !r.body) return new Response("go2rtc call failed", { status: 502 });
+          return new Response(r.body, {
+            headers: {
+              "Content-Type": r.headers.get("content-type") || "video/mp4",
               "Cache-Control": "no-store",
             },
           });
@@ -533,6 +564,25 @@ const server = Bun.serve({
         const r = await hassFetch("/api/services/script/turn_on", {
           method: "POST",
           body: JSON.stringify({ entity_id: "script.panic_floodlights_and_sirens" }),
+        });
+        if (!r.ok) return new Response("hass call failed", { status: 502 });
+        return Response.json({ ok: true });
+      } catch {
+        return new Response("error", { status: 500 });
+      }
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/floodlights/sirens-off") {
+      if (!HASS_TOKEN) return new Response("not configured", { status: 503 });
+      try {
+        const r = await hassFetch("/api/services/siren/turn_off", {
+          method: "POST",
+          body: JSON.stringify({
+            entity_id: [
+              "siren.front_door_floodlight_cam_siren",
+              "siren.deck_floodlight_cam_siren",
+            ],
+          }),
         });
         if (!r.ok) return new Response("hass call failed", { status: 502 });
         return Response.json({ ok: true });

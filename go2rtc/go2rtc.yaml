@@ -15,15 +15,27 @@ streams:
   # to whichever variant matches their codec request.
   front_door:
     - rtsp://admin:${REOLINK_FRONT_DOOR_PASSWORD}@192.168.1.3:554/h265Preview_01_main
-    - ffmpeg:front_door#video=mjpeg
+    # MJPEG variant for the modal's <img> fallback path. Tried adding
+    # an H.264 transcode variant for MSE but Reolink's HEVC stream
+    # has B-frame reference structures that break Intel's VAAPI HEVC
+    # decoder ("Could not find ref with POC X"). The modal now uses
+    # the sub-stream MP4 path instead, which is H.264-native and
+    # needs no transcoding at all.
+    - ffmpeg:front_door#video=mjpeg#hardware
   deck:
     - rtsp://admin:${REOLINK_DECK_PASSWORD}@192.168.1.8:554/h265Preview_01_main
-    - ffmpeg:deck#video=mjpeg
+    - ffmpeg:deck#video=mjpeg#hardware
 
-  # The cameras' sub channel is H.264 panoramic 1920×576 — same source
-  # HA's "fluent" entity uses. Kept around as a low-CPU fallback.
-  front_door_sub: rtsp://admin:${REOLINK_FRONT_DOOR_PASSWORD}@192.168.1.3:554/h264Preview_01_sub
-  deck_sub:       rtsp://admin:${REOLINK_DECK_PASSWORD}@192.168.1.8:554/h264Preview_01_sub
+  # The cameras' sub channel is H.264 panoramic 1920×576 — used for the
+  # dashboard tile preview. ~1/8 the pixel data of the main stream, and
+  # the QSV pipeline keeps CPU near zero. The HD main stream above is
+  # only consumed when the user opens the fullscreen modal.
+  front_door_sub:
+    - rtsp://admin:${REOLINK_FRONT_DOOR_PASSWORD}@192.168.1.3:554/h264Preview_01_sub
+    - ffmpeg:front_door_sub#video=mjpeg#hardware
+  deck_sub:
+    - rtsp://admin:${REOLINK_DECK_PASSWORD}@192.168.1.8:554/h264Preview_01_sub
+    - ffmpeg:deck_sub#video=mjpeg#hardware
 
 api:
   origin: '*'   # CORS open — only reachable via the docker network anyway

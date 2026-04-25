@@ -9,11 +9,14 @@ doesn't render markdown.
 ## Current state (set up 2026-04-25)
 
 - **Cameras integrated**: `Front door floodlight cam` + `Deck floodlight cam` via the Reolink integration.
-- **Automations** live in `automations.yaml` (already populated with the
-  two below using real entity IDs — no editing needed):
-  - *Floodlights: turn on when either cam detects person/vehicle*
-  - *Floodlights: turn off after 2 min of no detection* (auto-off
-    timer resets on every fresh detection).
+- **Custom HA image** (`./homeassistant-image/Dockerfile`): adds Intel's `intel-media-driver` (iHD VAAPI userspace) and sets `LIBVA_DRIVER_NAME=iHD` so ffmpeg can hardware-decode/encode on the UHD 770 iGPU. Compose adds `/dev/dri:/dev/dri` and `group_add: ["993"]` (the host `render` group) so the container can talk to the device.
+- **Automations** in `automations.yaml`:
+  - *Floodlights: turn on when either cam detects person/vehicle* — gated on `sun.sun = below_horizon` and `input_boolean.floodlights_auto = on`.
+  - *Floodlights: turn off after 2 min of no detection* — auto-off timer resets on every fresh detection.
+  - *Record HD clip — front door / deck* — fires a 60s VAAPI ffmpeg clip on person/vehicle alerts. **Skipped during 7am–7pm when `binary_sensor.rob_home = on`** (we don't need clips of ourselves in our own house). Always records at night, or any time we're away.
+  - *Bootstrap: default floodlights_auto to on* — first-boot only.
+- **Scripts**: `panic_floodlights_and_sirens` — both floodlights on + both sirens on. Manual call only (Lovelace Floodlights dashboard, dashboard PANIC button).
+- **Helpers**: `input_boolean.floodlights_auto` (master kill-switch for the auto-on rule), `binary_sensor.rob_home` (template, see below).
 
 ### Real entity IDs
 
@@ -25,11 +28,63 @@ doesn't render markdown.
 | Deck vehicle | `binary_sensor.deck_floodlight_cam_vehicle` |
 | Front floodlight | `light.front_door_floodlight_cam_floodlight` |
 | Deck floodlight | `light.deck_floodlight_cam_floodlight` |
+| All floodlights | `light.all_floodlights` (group of the two above) |
 | Front siren | `siren.front_door_floodlight_cam_siren` |
 | Deck siren | `siren.deck_floodlight_cam_siren` |
+| Auto toggle | `input_boolean.floodlights_auto` |
+| Rob home | `binary_sensor.rob_home` |
 
 Substitute these into the API examples below if you copy from older
 revisions of this file.
+
+---
+
+## HD clip recording pipeline
+
+Each detection automation calls a `shell_command` (defined in
+`configuration.yaml`) that runs `ffmpeg` against the cam's HEVC main
+stream via go2rtc, scales + transcodes to H.264 1920p on the iGPU
+(VAAPI), and writes a 60s MP4 to `/media/cam-recordings/<cam>/`.
+
+```
+HA event → shell_command.record_<cam> → ffmpeg (hwaccel vaapi) → MP4
+```
+
+Two non-obvious things to know:
+
+1. **Detached invocation pattern** — `ffmpeg` is wrapped in `sh -c '... &'`. HA's `shell_command` integration has a hardcoded 60-second timeout with no per-command override; an undetached `ffmpeg -t 60` would be SIGKILL'd before it could finalize the MP4 (no `moov` atom = unplayable file). The detach makes the shell exit at ~0s; ffmpeg keeps running under PID 1 reparenting and writes a clean file.
+2. **VAAPI not QSV** — Alpine doesn't package Intel's `oneVPL` runtime that QSV needs. Both target the same `iHD_drv_video.so` underneath, so VAAPI is functionally equivalent on UHD 770.
+
+**`mode: single` + `delay: 45s`** in each automation gates re-triggers — at most one clip per cam per detection burst within a 45s window. Continuous activity (someone prowling for >45s) will produce sequential clips since the cam re-arms its `person` sensor on a similar cadence.
+
+Files land at `/mnt/disk2/cam-recordings/{front_door,deck}/<UTC-timestamp>.mp4` (bind-mounted into HA at `/media/cam-recordings/` and into the dashboard at `/cam-recordings:ro`). Pruned daily by `scripts/cam-recordings-prune.sh` (3-day retention).
+
+---
+
+## Presence detection (`binary_sensor.rob_home`)
+
+A template binary sensor that's `on` if **either** signal says we're
+home — defined in `configuration.yaml`:
+
+- `device_tracker.kochi` (the phone) reports `home` — GPS via the HA Companion app.
+- `sensor.kochi_wi_fi_connection` reports the home SSID — also from the Companion app, more reliable than GPS for "definitely on the property".
+
+OR'd together because GPS can briefly drift to `not_home` while you're
+still inside, and WiFi can disconnect transiently. Either signal alone
+keeps the sensor `on`.
+
+**Companion app setup** (one-off, on each phone):
+1. Install the [Home Assistant Companion app](https://www.home-assistant.io/integrations/mobile_app/) and sign in.
+2. App → Settings → Companion app → **Manage sensors** → enable **Location sensor** and **WiFi Connection**.
+3. Grant the OS-level "Allow all the time" / "Always" permission. On iOS also enable **Precise Location**.
+
+Once on, the `device_tracker.<phone>` and `sensor.<phone>_wi_fi_connection`
+entities will populate within ~30 seconds. The template will resolve
+from `unknown` to `on` / `off` accordingly. Add more signals (NFC tag,
+bluetooth, second phone) by extending the OR list in the template.
+
+The clip-recording automations use it to skip daytime detections when
+home — `condition: rob_home is off OR time is between 19:00–07:00`.
 
 ---
 

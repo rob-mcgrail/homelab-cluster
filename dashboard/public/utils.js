@@ -41,6 +41,23 @@ export function fmtAgo(epochSec) {
   return `${Math.floor(d / 86400)}d ago`;
 }
 
+// Absolute time label that adapts to recency: "Today 14:23",
+// "Yesterday 14:23", "Mon 14:23" (within last week), or "23 Apr 14:23".
+export function fmtClipDay(epochMs) {
+  if (!epochMs) return '';
+  const d = new Date(epochMs);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const dayMs = 86400000;
+  if (epochMs >= startOfToday) return `Today ${t}`;
+  if (epochMs >= startOfToday - dayMs) return `Yesterday ${t}`;
+  if (epochMs >= startOfToday - 6 * dayMs) {
+    return `${d.toLocaleDateString([], { weekday: 'short' })} ${t}`;
+  }
+  return `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })} ${t}`;
+}
+
 export function fmtLease(expiryEpoch) {
   if (!expiryEpoch) return 'no lease';
   const now = Date.now() / 1000;

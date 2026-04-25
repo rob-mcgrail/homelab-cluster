@@ -118,13 +118,24 @@ services:
       - .api_keys
     volumes:
       - ./go2rtc/go2rtc.yaml:/config/go2rtc.yaml:ro
+    # Intel iGPU for VAAPI/QSV — offloads H.265 decode + H.264/MJPEG
+    # encode from the CPU. Same render-group hand-off Jellyfin uses.
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "993"   # render group (matches host)
     # 1984 = HTTP API + web UI (only reached via docker network, no host port)
-    # 8554 = RTSP server (unused for our setup)
+    # 8554 = RTSP server
     # 8555 = WebRTC TCP (for browser RTC negotiation if we ever wire it)
     restart: unless-stopped
 
   homeassistant:
-    image: ghcr.io/home-assistant/home-assistant:stable
+    # Custom build that layers the Intel iHD VAAPI driver on top of the
+    # stock HA image — required for QSV-accelerated camera-clip recording.
+    # Build context is its own dir (not ./homeassistant which is the
+    # bind-mounted /config and would tarball the HA database into every
+    # image build).
+    build: ./homeassistant-image
     container_name: homeassistant
     user: "${PUID_HOMEASSISTANT}:${PGID}"
     logging:
@@ -132,6 +143,13 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
+    # Intel iGPU for QSV-accelerated camera-clip recording (the
+    # shell_command.record_* ffmpeg pipelines decode H.265 + encode
+    # H.264 entirely on the GPU).
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "993"   # render group (matches host)
     environment:
       - TZ=${TZ}
     volumes:

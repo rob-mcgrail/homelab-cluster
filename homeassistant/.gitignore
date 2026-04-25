@@ -6,6 +6,7 @@
 # Whitelist what we DO want tracked: hand-edited config YAMLs + docs +
 # this gitignore itself.
 !.gitignore
+!Dockerfile
 !configuration.yaml
 !automations.yaml
 !scripts.yaml

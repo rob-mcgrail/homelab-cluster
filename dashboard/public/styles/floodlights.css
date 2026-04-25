@@ -169,6 +169,40 @@
   to   { box-shadow: 0 0 32px rgba(239, 68, 68, 0.7); }
 }
 
+/* Silence-sirens button — defensive action, single tap, no confirmation.
+   Lives directly under the panic button so it's the obvious "undo" for
+   the siren part of a panic event. Lighter weight visually than panic
+   so it doesn't compete for attention. */
+.fl-silence {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%;
+  margin-top: 0.6rem;
+  padding: 0.7rem 1rem;
+  font: inherit; font-weight: 700; letter-spacing: 0.06em;
+  font-size: 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.08);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.fl-silence:hover { border-color: rgba(148, 163, 184, 0.55); color: #cbd5e1; }
+.fl-silence[data-state="firing"] {
+  background: rgba(148, 163, 184, 0.2);
+  color: #e2e8f0;
+}
+.fl-silence[data-state="fired"] {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: #22c55e;
+  color: #bbf7d0;
+}
+.fl-silence[data-state="failed"] {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fecaca;
+}
+
 /* Fullscreen camera modal — opens on tile tap, closes on tap-anywhere
    or Esc. Tries native fullscreen + screen.orientation.lock('landscape')
    first; the CSS-rotation fallback covers iOS Safari which doesn't
@@ -241,7 +275,14 @@
   font-size: 0.85rem; font-weight: 600; color: #fda4af;
 }
 .fl-clip-time {
-  font-size: 0.72rem; color: #6a3a3f;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem;
+  text-align: right;
+}
+.fl-clip-when {
+  font-size: 0.78rem; color: #fda4af; font-weight: 500;
+}
+.fl-clip-ago {
+  font-size: 0.7rem; color: #6a3a3f;
 }
 
 /* Clip playback modal — two <video> elements side-by-side on landscape

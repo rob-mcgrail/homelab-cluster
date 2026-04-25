@@ -8,6 +8,9 @@
     one clip per cam per detection burst (with intentional overlap
     allowed if a fresh event arrives after the 45s lock but before
     the 60s ffmpeg finishes).
+    Skipped during daylight (7am–7pm) when Rob is home — daytime
+    detections of the household aren't worth a clip. Outside that
+    window (night, or anytime he's away) we always record.
   mode: single
   trigger:
     - platform: state
@@ -15,6 +18,15 @@
         - binary_sensor.front_door_floodlight_cam_person
         - binary_sensor.front_door_floodlight_cam_vehicle
       to: "on"
+  condition:
+    - condition: or
+      conditions:
+        - condition: state
+          entity_id: binary_sensor.rob_home
+          state: "off"
+        - condition: time
+          after: "19:00:00"
+          before: "07:00:00"
   action:
     - service: shell_command.record_front_door
     # Hold the automation "running" so any further triggers in this
@@ -26,6 +38,7 @@
   alias: "Record HD clip — deck"
   description: >-
     Same pattern as front_door — 60s clip + mode:single 45s lock.
+    Same daytime-at-home skip condition.
   mode: single
   trigger:
     - platform: state
@@ -33,6 +46,15 @@
         - binary_sensor.deck_floodlight_cam_person
         - binary_sensor.deck_floodlight_cam_vehicle
       to: "on"
+  condition:
+    - condition: or
+      conditions:
+        - condition: state
+          entity_id: binary_sensor.rob_home
+          state: "off"
+        - condition: time
+          after: "19:00:00"
+          before: "07:00:00"
   action:
     - service: shell_command.record_deck
     - delay: "00:00:45"

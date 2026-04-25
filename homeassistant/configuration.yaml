@@ -18,6 +18,19 @@ input_boolean:
     name: "Auto-floodlights enabled"
     icon: mdi:lightbulb-auto
 
+# Aggregated "is Rob home?" signal. The Companion App's GPS
+# device_tracker can be slow to update or briefly drift to
+# `not_home` while still on the property, so OR it against the WiFi
+# SSID — if the phone's on the home network we're definitely here.
+# Add more signals (NFC tag, bluetooth) by extending the OR list.
+template:
+  - binary_sensor:
+      - name: "Rob home"
+        unique_id: rob_home
+        state: >-
+          {{ is_state('device_tracker.kochi', 'home')
+             or is_state('sensor.kochi_wi_fi_connection', 'love to log on to online') }}
+
 # Light groups — a single entity that controls multiple physical lights.
 # Toggle light.all_floodlights to fire (or kill) both cams' floodlights
 # in sync; the group's state reflects whether ANY member is on.
@@ -42,31 +55,47 @@ lovelace:
       require_admin: false
 
 # 60-second HD clip recorders. Pulls from go2rtc's RTSP server (the
-# H.265 main stream from the camera) and transcodes to H.264 1920p so
-# the clips play in any browser via HA's media browser. -preset
-# ultrafast keeps the CPU cost short — only spikes during the 30s of
-# an active recording, idle the rest of the time.
+# H.265 main stream) and transcodes to H.264 1920p so clips play in
+# any browser via HA's media browser. The whole pipeline runs on the
+# Intel iGPU via VAAPI — H.265 decode, scale, and H.264 encode all
+# happen on the GPU. CPU cost is near-zero so a recording during a
+# live stream no longer starves the dashboard.
+#
+# (We use VAAPI rather than QSV because the latter needs Intel's
+# oneVPL runtime that isn't packaged on Alpine. Both target the same
+# iHD driver underneath, so functionally equivalent on UHD 770.)
 shell_command:
+  # ffmpeg is wrapped in `sh -c '... &'` so it runs detached — HA's
+  # shell_command has a hardcoded 60-second timeout, but our recording
+  # is -t 60 plus ~3-5s of startup + MP4 finalisation, which would
+  # otherwise be killed before the moov atom is written, producing
+  # a corrupt unplayable file. The shell exits immediately after
+  # backgrounding ffmpeg, so HA gets its return code instantly and
+  # ffmpeg runs to completion under PID 1 reparenting.
   record_front_door: >-
-    ffmpeg -y -loglevel error -rtsp_transport tcp
-    -i rtsp://go2rtc:8554/front_door
+    sh -c 'ffmpeg -y -loglevel error
+    -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -hwaccel_output_format vaapi
+    -rtsp_transport tcp -i rtsp://go2rtc:8554/front_door
     -t 60
-    -vf scale=1920:-2
-    -c:v libx264 -preset ultrafast -crf 26 -pix_fmt yuv420p
+    -vf "scale_vaapi=w=1920:h=-1"
+    -c:v h264_vaapi -rc_mode CQP -global_quality 26
     -c:a aac -b:a 96k
     -movflags +faststart
     -f mp4
-    /media/cam-recordings/front_door/{{ now().strftime('%Y%m%dT%H%M%SZ') }}.mp4
+    /media/cam-recordings/front_door/{{ now().strftime("%Y%m%dT%H%M%SZ") }}.mp4
+    < /dev/null > /dev/null 2>&1 &'
   record_deck: >-
-    ffmpeg -y -loglevel error -rtsp_transport tcp
-    -i rtsp://go2rtc:8554/deck
+    sh -c 'ffmpeg -y -loglevel error
+    -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -hwaccel_output_format vaapi
+    -rtsp_transport tcp -i rtsp://go2rtc:8554/deck
     -t 60
-    -vf scale=1920:-2
-    -c:v libx264 -preset ultrafast -crf 26 -pix_fmt yuv420p
+    -vf "scale_vaapi=w=1920:h=-1"
+    -c:v h264_vaapi -rc_mode CQP -global_quality 26
     -c:a aac -b:a 96k
     -movflags +faststart
     -f mp4
-    /media/cam-recordings/deck/{{ now().strftime('%Y%m%dT%H%M%SZ') }}.mp4
+    /media/cam-recordings/deck/{{ now().strftime("%Y%m%dT%H%M%SZ") }}.mp4
+    < /dev/null > /dev/null 2>&1 &'
 
 # Split-out files for things you'll edit a lot.
 automation: !include automations.yaml

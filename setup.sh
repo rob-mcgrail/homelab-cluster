@@ -45,10 +45,13 @@ echo ""
 echo "==> Adding $(whoami) to $GROUP_NAME group"
 sudo usermod -aG "$GROUP_NAME" "$(whoami)"
 
-# Add jellyfin to the render group for Intel QSV hardware acceleration
+# Add jellyfin + homeassistant to the render group for Intel QSV
+# hardware acceleration (used by Jellyfin for transcode, by HA for
+# camera-clip recording, and by go2rtc for live stream transcode).
 echo ""
-echo "==> Adding jellyfin to render group (Intel QSV)"
+echo "==> Adding jellyfin + homeassistant to render group (Intel QSV)"
 sudo usermod -aG render jellyfin
+sudo usermod -aG render homeassistant
 
 echo ""
 echo "==> Writing IDs to $ENV_FILE"

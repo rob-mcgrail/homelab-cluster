@@ -1,5 +1,5 @@
 import { PANELS as DOTS } from '../config.js';
-import { esc, fmtAgo } from '../utils.js';
+import { esc, fmtAgo, fmtClipDay } from '../utils.js';
 
 const ALL_ID = 'light.all_floodlights';
 const LIGHTS = [
@@ -31,8 +31,11 @@ function startTileStreams() {
   if (!root) return;
   root.querySelectorAll('img.fl-cam-snap').forEach(img => {
     const slug = img.dataset.slug;
-    if (slug && !img.src.includes('/api/camera-stream/')) {
-      img.src = `/api/camera-stream/${slug}`;
+    // Tile uses the SD sub stream — much lighter than the HD main
+    // stream the modal pulls. The tile is small anyway, and this keeps
+    // CPU/GPU near zero when the panel's just sitting visible.
+    if (slug && !img.src.includes('/api/camera-preview/')) {
+      img.src = `/api/camera-preview/${slug}`;
     }
   });
 }
@@ -157,7 +160,10 @@ function render() {
            return `
              <div class="fl-clip-row" data-idx="${idx}">
                <div class="fl-clip-cams">${cams}</div>
-               <div class="fl-clip-time">${esc(fmtAgo(Math.floor(ev.startMs / 1000)))}</div>
+               <div class="fl-clip-time">
+                 <div class="fl-clip-when">${esc(fmtClipDay(ev.startMs))}</div>
+                 <div class="fl-clip-ago">${esc(fmtAgo(Math.floor(ev.startMs / 1000)))}</div>
+               </div>
              </div>
            `;
          }).join('')}
@@ -170,9 +176,14 @@ function render() {
          <span class="fl-panic-label">PANIC</span>
          <span class="fl-panic-hint">tap twice to fire lights + sirens</span>
        </button>`
+    + `<button class="fl-silence" data-state="armed" type="button" aria-label="Silence sirens">
+         <span class="fl-silence-label">SILENCE SIRENS</span>
+       </button>`
     + eventsHtml;
   const panicBtn = listEl.querySelector('.fl-panic');
   if (panicBtn) panicBtn.addEventListener('click', panicClick);
+  const silenceBtn = listEl.querySelector('.fl-silence');
+  if (silenceBtn) silenceBtn.addEventListener('click', silenceClick);
   listEl.querySelectorAll('.fl-cam').forEach(tile => {
     tile.addEventListener('click', () => openCamModal(tile.dataset.slug, tile.dataset.name));
   });
@@ -243,6 +254,12 @@ function openClipModal(eventClips) {
 function openCamModal(slug, name) {
   const overlay = document.createElement('div');
   overlay.className = 'fl-cam-modal';
+  // MJPEG of the HD main stream via go2rtc (transcoded MJPEG via VAAPI
+  // on the iGPU). Tried switching to <video> + fragmented MP4 for
+  // efficiency but it played one frame and stalled — likely a fmp4
+  // streaming quirk through the Bun fetch proxy. MJPEG via <img>
+  // streams reliably; CPU cost is acceptable now that VAAPI is doing
+  // the heavy lifting.
   overlay.innerHTML = `
     <button class="fl-cam-modal-close" aria-label="Close">×</button>
     <div class="fl-cam-modal-name">${name}</div>
@@ -251,15 +268,18 @@ function openCamModal(slug, name) {
   document.body.appendChild(overlay);
 
   const close = () => {
+    // Clearing the src closes the TCP connection to go2rtc.
+    const img = overlay.querySelector('img');
+    if (img) img.src = '';
     overlay.remove();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     if (screen.orientation && screen.orientation.unlock) {
       try { screen.orientation.unlock(); } catch {}
     }
+    document.removeEventListener('keydown', onKey);
   };
   overlay.addEventListener('click', close);
-  // Esc key support on desktop
-  const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', onKey);
 
   // Try to go fullscreen + lock landscape. iOS Safari ignores both;
@@ -313,6 +333,32 @@ async function panicClick() {
   if (panicState === 'failed') {
     setPanicState('armed');
   }
+}
+
+async function silenceClick() {
+  const btn = root && root.querySelector('.fl-silence');
+  if (!btn || btn.dataset.state === 'firing') return;
+  const label = btn.querySelector('.fl-silence-label');
+  const prevText = label.textContent;
+  btn.dataset.state = 'firing';
+  label.textContent = 'SILENCING…';
+  try {
+    const r = await fetch('/api/floodlights/sirens-off', { method: 'POST' });
+    if (!r.ok) throw new Error();
+    btn.dataset.state = 'fired';
+    label.textContent = '✓ SILENCED';
+  } catch {
+    btn.dataset.state = 'failed';
+    label.textContent = 'FAILED';
+  }
+  setTimeout(() => {
+    if (!root) return;
+    const b = root.querySelector('.fl-silence');
+    if (!b) return;
+    b.dataset.state = 'armed';
+    const l = b.querySelector('.fl-silence-label');
+    if (l) l.textContent = prevText;
+  }, 2000);
 }
 
 
