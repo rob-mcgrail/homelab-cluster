@@ -31,6 +31,10 @@ bazarr.{$DOMAIN} {
 	reverse_proxy bazarr:6767
 }
 
+navidrome.{$DOMAIN} {
+	reverse_proxy navidrome:4533
+}
+
 www.{$DOMAIN} {
 	reverse_proxy dashboard:8000
 }

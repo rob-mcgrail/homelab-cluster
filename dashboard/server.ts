@@ -138,7 +138,7 @@ function formatBytes(bytes: number): string {
   return (bytes / 1073741824).toFixed(2) + " GB";
 }
 
-type TriageStatus = "early-stall" | "parked" | "retrying" | "first-parked" | null;
+type TriageStatus = "paused" | "resumed" | null;
 
 function triageFromTags(tagsStr: string): { status: TriageStatus; since: number | null } {
   const byPrefix: Record<string, number | null> = {};
@@ -149,11 +149,20 @@ function triageFromTags(tagsStr: string): { status: TriageStatus; since: number 
     const epoch = epochStr ? Number(epochStr) : null;
     if (!(prefix in byPrefix)) byPrefix[prefix] = isNaN(epoch as number) ? null : epoch;
   }
-  // priority: active cycle state beats the permanent first-parked marker
-  if ("triage-retry" in byPrefix)        return { status: "retrying",     since: byPrefix["triage-retry"] };
-  if ("triage-paused" in byPrefix)       return { status: "parked",       since: byPrefix["triage-paused"] };
-  if ("triage-early-stall" in byPrefix)  return { status: "early-stall",  since: byPrefix["triage-early-stall"] };
-  if ("triage-first-parked" in byPrefix) return { status: "first-parked", since: byPrefix["triage-first-parked"] };
+  // Current schema: triage-paused / triage-resumed (most recent wins).
+  // Legacy schema still seen during transition:
+  //   triage-retry          → resumed
+  //   triage-early-stall    → paused
+  //   triage-first-parked   → paused (only as a fallback — triage-first-seen
+  //                          is the new permanent marker and carries no status)
+  const resumed = byPrefix["triage-resumed"] ?? byPrefix["triage-retry"];
+  const paused  = byPrefix["triage-paused"]
+                ?? byPrefix["triage-early-stall"]
+                ?? byPrefix["triage-first-parked"];
+  if (resumed != null && (paused == null || resumed > (paused ?? 0))) {
+    return { status: "resumed", since: resumed };
+  }
+  if (paused != null) return { status: "paused", since: paused };
   return { status: null, since: null };
 }
 

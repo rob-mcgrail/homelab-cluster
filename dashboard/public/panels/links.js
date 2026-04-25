@@ -10,6 +10,7 @@ const SERVICES = [
   { host: 'prowlarr',                 name: 'Prowlarr',                    desc: 'Indexer management' },
   { host: 'qbittorrent',              name: 'qBittorrent',                 desc: 'Download client' },
   { host: 'bazarr',                   name: 'Bazarr',                      desc: 'Subtitle management' },
+  { host: 'navidrome',                name: 'Navidrome',                   desc: 'Music streaming server' },
   { host: 'pihole',                   name: 'Pi-hole',                     desc: 'Network-wide DNS ad-blocker', path: '/admin/' },
 ];
 

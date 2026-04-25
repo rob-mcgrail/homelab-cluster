@@ -1,6 +1,6 @@
 # homelab-cluster
 
-Docker Compose stack for a home media server: Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr.
+Docker Compose stack for a home media server: Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Navidrome.
 
 ## Setup
 
@@ -111,6 +111,7 @@ Hardlinks only work within a single branch, so both files must physically live o
 | Prowlarr    | 9696 |
 | qBittorrent | 8080 |
 | Bazarr      | 6767 |
+| Navidrome   | 4533 |
 | Pi-hole     | 8090 (web), 53 bound to `${LAN_IP}` |
 
 ## DNS

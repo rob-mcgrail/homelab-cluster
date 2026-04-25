@@ -2,7 +2,7 @@
 
 Docker Compose stack for a home media server with a mobile-first dashboard and an AI-powered movie bot.
 
-**Services:** Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Pi-hole (network-wide DNS + ad-blocking + optional DHCP), Caddy (reverse proxy), jellyfin-proxy (HEVC force-transcode shim), Dashboard (Movie Bot)
+**Services:** Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Navidrome (music streaming), Pi-hole (network-wide DNS + ad-blocking + optional DHCP), Caddy (reverse proxy), jellyfin-proxy (HEVC force-transcode shim), Dashboard (Movie Bot)
 
 ## What it does
 
@@ -129,12 +129,16 @@ Add to your crontab (`crontab -e`):
 0 */4 * * * /path/to/homelab-cluster/movie-bot-download-triage/run-triage.sh
 0 6 * * 0 /path/to/homelab-cluster/movie-bot-recommendations/run-recs.sh
 0 3 * * * /path/to/homelab-cluster/movie-bot-double-features/run-double-features.sh
+0 4 * * * /path/to/homelab-cluster/scripts/missing-sweep.sh
+0 5 * * 1 /path/to/homelab-cluster/scripts/cutoff-sweep.sh
 ```
 
 - **`run-prompt.sh`** — every minute, picks up new user prompts from the dashboard queue and runs Claude Code to process them.
 - **`run-triage.sh`** — every 4 hours, reviews the qBittorrent queue and recent user requests: pauses + re-searches early-stalled torrents, parks mostly-done stalls and retries them after 12h, auto-retires torrents stuck for >7 days (removes + blocklists dead release, triggers fresh search), cleans up orphaned `missingFiles` torrents (with a safety cap so a transient mount failure doesn't nuke everything), and priority-boosts fresh small-batch requests. See `movie-bot-download-triage/triage-prompt.txt` for the full decision framework.
 - **`run-recs.sh`** — every Sunday at 06:00 UTC, generates fresh film recommendations based on the user's watch history, saved thoughts, and prior rec ratings (seen-good / seen-bad). Appends recs to `movie-bot-data/recommendations.jsonl` for the dashboard Recs Bot panel to display. See `movie-bot-recommendations/recs-prompt.txt` for the decision framework.
 - **`run-double-features.sh`** — every night at 03:00 UTC, proposes thematic double-feature pairings drawn from the Jellyfin "Films" library (excluding already-watched and already-paired titles). No-ops if the panel already holds 6+ non-dismissed suggestions, and adds at most 2 per run. Suggestions live as one markdown file per pairing in `movie-bot-data/double-features/`; dismissing one moves the file to `movie-bot-data/dismissed-double-features/` so the bot won't repeat it. See `movie-bot-double-features/double-features-prompt.txt` for the decision framework.
+- **`missing-sweep.sh`** — every day at 04:00 UTC, triggers `MissingEpisodeSearch` (Sonarr) and `MissingMoviesSearch` (Radarr). Fills gaps where a monitored item has no file yet. Daily because new releases appear regularly and recently-monitored series often have many missing episodes.
+- **`cutoff-sweep.sh`** — every Monday at 05:00 UTC, triggers `CutoffUnmetEpisodeSearch` (Sonarr) and `CutoffUnmetMoviesSearch` (Radarr). Pulls upgrades for items below the quality profile's cutoff. Weekly because backlog upgrades materialise slowly — better releases of old catalog content are rare — so daily would be load for near-zero signal. Both sweeps log to `movie-bot-data/sweep-logs/`.
 
 ### 9. Pi-hole (optional but recommended)
 
@@ -192,6 +196,7 @@ All services are available via HTTPS at `<service>.yourdomain.org`:
 | Prowlarr | `https://prowlarr.yourdomain.org` |
 | qBittorrent | `https://qbittorrent.yourdomain.org` |
 | Bazarr | `https://bazarr.yourdomain.org` |
+| Navidrome | `https://navidrome.yourdomain.org` |
 | Pi-hole | `https://pihole.yourdomain.org/admin` |
 
 Services are also available on their original ports via IP for direct access.

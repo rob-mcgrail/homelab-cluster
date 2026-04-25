@@ -18,10 +18,11 @@ function badgeCls(cat) {
 }
 
 function subStatus(t) {
-  // Triage tag wins.
+  // Triage tag wins — status comes directly from the server's two-state
+  // schema (paused / resumed). Backwards-compat for legacy tags is handled
+  // server-side.
   if (t.triage && t.triage.status) {
-    const labels = { 'early-stall': 'early-stall', 'parked': 'parked', 'retrying': 'retrying', 'first-parked': 'parked' };
-    return { label: labels[t.triage.status] || t.triage.status, since: t.triage.since };
+    return { label: t.triage.status, since: t.triage.since };
   }
   // Untagged items in the triaged bucket — derive from raw qBit state.
   const s = t.state || '';

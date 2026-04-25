@@ -106,6 +106,29 @@ services:
       - 6881:6881/udp
     restart: unless-stopped
 
+  navidrome:
+    image: deluan/navidrome:0.56.1
+    container_name: navidrome
+    user: "${PUID_NAVIDROME}:${PGID}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    environment:
+      - TZ=${TZ}
+      - ND_LOGLEVEL=info
+      - ND_SESSIONTIMEOUT=24h
+      - ND_SCANSCHEDULE=@every 1h
+      - ND_MUSICFOLDER=/music
+      - ND_DATAFOLDER=/data
+    volumes:
+      - ${CONFIG_ROOT}/navidrome:/data
+      - /archive/music:/music:ro
+    ports:
+      - 4533:4533
+    restart: unless-stopped
+
   bazarr:
     image: lscr.io/linuxserver/bazarr:v1.5.6-ls344
     container_name: bazarr
@@ -223,6 +246,7 @@ services:
       - FTLCONF_database_maxDBdays=7
       - FTLCONF_webserver_port=7001o,[::]:7001o
       - FTLCONF_dns_piholePTR=NONE
+      - FTLCONF_dns_specialDomains_iCloudPrivateRelay=false
     volumes:
       - ${CONFIG_ROOT}/pihole/etc-pihole:/etc/pihole
       - ${CONFIG_ROOT}/pihole/etc-dnsmasq.d:/etc/dnsmasq.d
