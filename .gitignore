@@ -22,3 +22,15 @@ movie-bot-data/recommendations.jsonl
 movie-bot-data/movie-thoughts.jsonl
 movie-bot-data/completed-recs-runs/*
 !movie-bot-data/completed-recs-runs/.gitkeep
+
+# Double Features bot (active, dismissed, run reports)
+movie-bot-data/double-features/*
+!movie-bot-data/double-features/.gitkeep
+movie-bot-data/dismissed-double-features/*
+!movie-bot-data/dismissed-double-features/.gitkeep
+movie-bot-data/completed-double-feature-runs/*
+!movie-bot-data/completed-double-feature-runs/.gitkeep
+
+# Library sweep logs (missing/cutoff cron)
+movie-bot-data/sweep-logs/*
+!movie-bot-data/sweep-logs/.gitkeep
