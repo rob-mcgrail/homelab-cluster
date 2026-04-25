@@ -78,6 +78,33 @@
 }
 .fl-toggle[disabled] { opacity: 0.5; cursor: default; }
 
+/* Pending state — between user tap and HA confirming the new Reolink
+   state. Honest UX: we don't pretend the light is on yet; we show a
+   visible loading cue until /api/floodlights returns the new state.
+   The pulsing indicator + "…" state text + dimmed row read as
+   "working on it" without committing to a result. */
+.fl-row.pending {
+  border-color: rgba(251, 191, 36, 0.35);
+}
+.fl-toggle.pending {
+  cursor: wait;
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.06);
+}
+.fl-toggle.pending .fl-indicator {
+  background: #fbbf24;
+  box-shadow: 0 0 8px #fbbf24;
+  animation: flPendingPulse 0.9s ease-in-out infinite alternate;
+}
+.fl-toggle.pending .fl-state {
+  letter-spacing: 0.1em;
+}
+@keyframes flPendingPulse {
+  from { opacity: 0.4; transform: scale(0.9); }
+  to   { opacity: 1;   transform: scale(1.15); }
+}
+
 .fl-indicator {
   width: 8px; height: 8px; border-radius: 50%;
   background: #4a2025;

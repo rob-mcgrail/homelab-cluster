@@ -17,6 +17,11 @@ let root, listEl;
 let state = null; // { configured: bool, lights?: [{entity_id,state}], error?: bool }
 let clips = [];   // [{cam, filename, mtimeMs, sizeBytes}, ...]
 let panelVisible = false;
+// Entity IDs whose toggle is in flight. Reolink takes 1-3s to land a
+// command, so we stay in "pending" until the next /api/floodlights
+// refresh shows the new authoritative state. Avoids the old optimistic
+// flip, which lied about the state for 1-3s after every tap.
+const pending = new Set();
 const CAM_LABEL = { front_door: 'Front door', deck: 'Deck' };
 
 function dots() {
@@ -62,32 +67,25 @@ async function refresh() {
   } catch {
     state = { error: true };
   }
+  // Any in-flight toggle is now resolved — HA's state is authoritative.
+  pending.clear();
   await loadClips();
   render();
 }
 
 async function toggle(entity_id) {
   if (!state || !state.lights) return;
-  const target = state.lights.find(l => l.entity_id === entity_id);
-  if (!target) return;
-  const newState = target.state === 'on' ? 'off' : 'on';
+  if (pending.has(entity_id)) return; // already in flight
 
-  // Snapshot every light's state so we can revert atomically on failure.
-  const snapshot = state.lights.map(l => ({ id: l.entity_id, state: l.state }));
-
+  // Mark every entity whose state may visibly change. Tapping "All"
+  // affects both members; tapping a member affects itself + the
+  // derived "All" row. Either way, every affected row goes pending
+  // until HA confirms the new state.
   if (entity_id === ALL_ID) {
-    // Tapping "All" should drag every member to the new state, so flip
-    // every light in the local cache (including ALL_ID itself).
-    state.lights.forEach(l => { l.state = newState; });
+    state.lights.forEach(l => pending.add(l.entity_id));
   } else {
-    target.state = newState;
-    // ALL_ID's derived behaviour: on if ANY member is on. Recompute it
-    // so the All row reflects the change immediately.
-    const all = state.lights.find(l => l.entity_id === ALL_ID);
-    if (all) {
-      const anyOn = state.lights.some(l => l.entity_id !== ALL_ID && l.state === 'on');
-      all.state = anyOn ? 'on' : 'off';
-    }
+    pending.add(entity_id);
+    pending.add(ALL_ID);
   }
   render();
 
@@ -98,14 +96,11 @@ async function toggle(entity_id) {
       body: JSON.stringify({ entity_id }),
     });
     if (!res.ok) throw new Error();
-    // Sync with HA's authoritative state after a short delay.
-    setTimeout(refresh, 400);
+    // Reolink takes 1-3s to actually land a command. Wait long enough
+    // that the refresh sees the new state in HA, not the pre-flip one.
+    setTimeout(refresh, 1800);
   } catch {
-    // Revert every light to its pre-toggle state.
-    snapshot.forEach(s => {
-      const l = state.lights.find(x => x.entity_id === s.id);
-      if (l) l.state = s.state;
-    });
+    pending.clear();
     render();
   }
 }
@@ -127,13 +122,14 @@ function render() {
   const byId = new Map(state.lights.map(l => [l.entity_id, l.state]));
   const lightRows = LIGHTS.map(l => {
     const isOn = byId.get(l.id) === 'on';
-    const cls = ['fl-row', isOn ? 'on' : 'off', l.all ? 'fl-row-all' : ''].filter(Boolean).join(' ');
+    const isPending = pending.has(l.id);
+    const cls = ['fl-row', isOn ? 'on' : 'off', l.all ? 'fl-row-all' : '', isPending ? 'pending' : ''].filter(Boolean).join(' ');
     return `
       <div class="${cls}" data-id="${esc(l.id)}">
         <div class="fl-name">${esc(l.name)}</div>
-        <button class="fl-toggle ${isOn ? 'on' : 'off'}" aria-pressed="${isOn}">
+        <button class="fl-toggle ${isOn ? 'on' : 'off'} ${isPending ? 'pending' : ''}" aria-pressed="${isOn}" ${isPending ? 'aria-busy="true"' : ''}>
           <span class="fl-indicator"></span>
-          <span class="fl-state">${isOn ? 'ON' : 'OFF'}</span>
+          <span class="fl-state">${isPending ? '…' : (isOn ? 'ON' : 'OFF')}</span>
         </button>
       </div>
     `;
