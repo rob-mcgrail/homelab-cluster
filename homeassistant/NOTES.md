@@ -59,6 +59,42 @@ Two non-obvious things to know:
 
 Files land at `/mnt/disk2/cam-recordings/{front_door,deck}/<UTC-timestamp>.mp4` (bind-mounted into HA at `/media/cam-recordings/` and into the dashboard at `/cam-recordings:ro`). Pruned daily by `scripts/cam-recordings-prune.sh` (3-day retention).
 
+### Cam-side encoding (set via Reolink HTTP API)
+
+Both cams configured identically:
+
+| Stream | Resolution | Codec | FPS | Bitrate | GOP |
+|---|---|---|---|---|---|
+| Main | 5120×1552 | H.265 High | 20 | 5120 kbps | **1s** |
+| Sub  | 1920×576  | H.264 High | 20 | 1024 kbps | **1s** |
+
+Note the **GOP = 1s** on both streams. Reolink's defaults were 2s (main) / 4s (sub), which adds up to that much dead time at the start of every clip while ffmpeg waits for the next I-frame. With GOP=1s the worst-case wait is ≤1s, so clips start essentially instantly. Same benefit on the dashboard tile reconnect when you swipe onto the Floodlights panel.
+
+Tradeoff: the smaller GOP raises bitrate by ~5-10% — already at the cam's tier-max 5120 kbps, so it burns that budget more efficiently rather than going higher.
+
+Set via the Reolink HTTP API directly (HA's Reolink integration doesn't expose encoding settings):
+```sh
+# Login → token (60-min lease)
+TOKEN=$(curl -sk -X POST "https://$IP/cgi-bin/api.cgi?cmd=Login" \
+  -H 'Content-Type: application/json' \
+  -d "[{\"cmd\":\"Login\",\"action\":0,\"param\":{\"User\":{\"userName\":\"admin\",\"password\":\"$PASS\"}}}]" \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)[0]["value"]["Token"]["name"])')
+
+# SetEnc — note: must include the FULL Enc body (size, codec, etc), not just gop
+curl -sk -X POST "https://$IP/cgi-bin/api.cgi?cmd=SetEnc&token=$TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '[{"cmd":"SetEnc","action":0,"param":{"Enc":{"audio":0,"channel":0,
+        "mainStream":{"bitRate":5120,"frameRate":20,"gop":1,"profile":"High","size":"5120*1552","vType":"h265"},
+        "subStream":{"bitRate":1024,"frameRate":20,"gop":1,"profile":"High","size":"1920*576","vType":"h264"}}}}]'
+```
+
+Other cam-side settings worth knowing about (read-only from HA, set via Reolink web UI or HTTP API):
+
+- **AI sensitivity**: people=79, vehicle=60, dog_cat=60. People-detection-driven recording so people is highest.
+- **AI stay_time = 0s** — alarm fires the instant the AI classifier sees a person/vehicle, no minimum dwell.
+- **Push interval = 20s** — minimum gap between push notifications. Combined with our 60s clip + 45s automation lock, repeat triggers from continuous activity arrive every ~80s.
+- **OSD timestamp**: on (so the burned-in time is visible in clips even if the file mtime is later than the recorded moment).
+
 ---
 
 ## Presence detection (`binary_sensor.rob_home`)
