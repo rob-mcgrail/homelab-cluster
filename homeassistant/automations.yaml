@@ -1,48 +1,23 @@
-- id: record_front_door_clip
-  alias: "Record HD clip — front door"
+- id: record_event_clips
+  alias: "Record HD clips — both cams on any person/vehicle event"
   description: >-
-    On a person or vehicle alert, fire a 60s ffmpeg record from the
-    front door cam's go2rtc RTSP feed. mode:single + a 45s delay
-    after the record action means while one recording is in flight,
-    additional triggers within the next 45s are dropped — at most
-    one clip per cam per detection burst (with intentional overlap
-    allowed if a fresh event arrives after the 45s lock but before
-    the 60s ffmpeg finishes).
-    Skipped during daylight (7am–7pm) when Rob is home — daytime
-    detections of the household aren't worth a clip. Outside that
-    window (night, or anytime he's away) we always record.
+    On a person or vehicle alert from EITHER cam, fire a 60s ffmpeg
+    record on BOTH cams. Cross-triggering is latency insurance: by the
+    time we react to a single cam's AI firing (detect ~200ms + webhook
+    ~100ms + HA dispatch ~100ms + ffmpeg first-I-frame ~1s ≈ 1.5s),
+    a fast target (runner, car) can already be in the second cam's FOV
+    but not yet have triggered its own AI. Anchoring both recordings
+    to the first detection captures both perspectives without paying
+    the second cam's detection-stack latency on top.
+    mode:single + 45s delay = ONE combined event lock — a follow-up
+    trigger from either cam within 45s is dropped because both clips
+    are already in flight. Daytime-at-home skip applies as before.
   mode: single
   trigger:
     - platform: state
       entity_id:
         - binary_sensor.front_door_floodlight_cam_person
         - binary_sensor.front_door_floodlight_cam_vehicle
-      to: "on"
-  condition:
-    - condition: or
-      conditions:
-        - condition: state
-          entity_id: binary_sensor.rob_home
-          state: "off"
-        - condition: time
-          after: "19:00:00"
-          before: "07:00:00"
-  action:
-    - service: shell_command.record_front_door
-    # Hold the automation "running" so any further triggers in this
-    # window are dropped (shell_command itself returns immediately;
-    # ffmpeg runs in background regardless).
-    - delay: "00:00:45"
-
-- id: record_deck_clip
-  alias: "Record HD clip — deck"
-  description: >-
-    Same pattern as front_door — 60s clip + mode:single 45s lock.
-    Same daytime-at-home skip condition.
-  mode: single
-  trigger:
-    - platform: state
-      entity_id:
         - binary_sensor.deck_floodlight_cam_person
         - binary_sensor.deck_floodlight_cam_vehicle
       to: "on"
@@ -56,7 +31,13 @@
           after: "19:00:00"
           before: "07:00:00"
   action:
+    # Both shell_commands are detached (sh -c '...&'), so each returns
+    # ~immediately and both ffmpegs run in parallel under PID 1
+    # reparenting. Sequential calls here are effectively simultaneous.
+    - service: shell_command.record_front_door
     - service: shell_command.record_deck
+    # Hold the automation "running" so any further triggers in this
+    # window are dropped — both clips are already being captured.
     - delay: "00:00:45"
 
 - id: bootstrap_floodlights_auto

@@ -13,7 +13,7 @@ doesn't render markdown.
 - **Automations** in `automations.yaml`:
   - *Floodlights: turn on when either cam detects person/vehicle* — gated on `sun.sun = below_horizon` and `input_boolean.floodlights_auto = on`.
   - *Floodlights: turn off after 2 min of no detection* — auto-off timer resets on every fresh detection.
-  - *Record HD clip — front door / deck* — fires a 60s VAAPI ffmpeg clip on person/vehicle alerts. **Skipped during 7am–7pm when `binary_sensor.rob_home = on`** (we don't need clips of ourselves in our own house). Always records at night, or any time we're away.
+  - *Record HD clips — both cams on any person/vehicle event* — single combined automation. On any person/vehicle trigger from EITHER cam, fires a 60s VAAPI ffmpeg clip on BOTH cams. Cross-triggering is latency insurance: the detect→record chain has ~1.5s of dead time, during which a fast target can leave one cam's FOV and enter the other before its own AI fires. Anchoring both recordings to the first detection captures both perspectives without paying the second cam's detection-stack latency on top. **Skipped during 7am–7pm when `binary_sensor.rob_home = on`** (we don't need clips of ourselves in our own house). Always records at night, or any time we're away.
   - *Bootstrap: default floodlights_auto to on* — first-boot only.
 - **Scripts**: `panic_floodlights_and_sirens` — both floodlights on + both sirens on. Manual call only (Lovelace Floodlights dashboard, dashboard PANIC button).
 - **Helpers**: `input_boolean.floodlights_auto` (master kill-switch for the auto-on rule), `binary_sensor.rob_home` (template, see below).
@@ -55,7 +55,7 @@ Two non-obvious things to know:
 1. **Detached invocation pattern** — `ffmpeg` is wrapped in `sh -c '... &'`. HA's `shell_command` integration has a hardcoded 60-second timeout with no per-command override; an undetached `ffmpeg -t 60` would be SIGKILL'd before it could finalize the MP4 (no `moov` atom = unplayable file). The detach makes the shell exit at ~0s; ffmpeg keeps running under PID 1 reparenting and writes a clean file.
 2. **VAAPI not QSV** — Alpine doesn't package Intel's `oneVPL` runtime that QSV needs. Both target the same `iHD_drv_video.so` underneath, so VAAPI is functionally equivalent on UHD 770.
 
-**`mode: single` + `delay: 45s`** in each automation gates re-triggers — at most one clip per cam per detection burst within a 45s window. Continuous activity (someone prowling for >45s) will produce sequential clips since the cam re-arms its `person` sensor on a similar cadence.
+**`mode: single` + `delay: 45s`** on the single combined automation gives one shared event lock — a follow-up trigger from either cam within 45s is dropped because both clips are already in flight. Continuous activity (someone prowling for >45s) will produce sequential paired clips since the cam re-arms its `person` sensor on a similar cadence.
 
 Files land at `/mnt/disk2/cam-recordings/{front_door,deck}/<UTC-timestamp>.mp4` (bind-mounted into HA at `/media/cam-recordings/` and into the dashboard at `/cam-recordings:ro`). Pruned daily by `scripts/cam-recordings-prune.sh` (3-day retention).
 
