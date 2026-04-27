@@ -213,6 +213,11 @@ services:
   dashboard:
     build: ./dashboard
     container_name: dashboard
+    # Loopback-only port binding so host-side cron jobs (run-recs.sh
+    # etc.) can POST to /api/event without going through Caddy. NOT
+    # exposed to the LAN — Caddy on 443 is the public path.
+    ports:
+      - "127.0.0.1:8000:8000"
     logging:
       driver: json-file
       options:
@@ -237,6 +242,105 @@ services:
       # Read-only access to HA's cam-recordings so the dashboard can
       # list + serve them in the Floodlights panel.
       - /mnt/disk2/cam-recordings:/cam-recordings:ro
+    restart: unless-stopped
+
+  # Tube Archivist — YouTube channel/playlist archiver. Three-container
+  # stack (app + Elasticsearch + Redis). Surfaces in Jellyfin via the
+  # official `jellyfin-plugin-tubearchivist` plugin which reads NFO
+  # sidecars TA writes per video. Used as the kids' YouTube library
+  # (Bluey clips, Ms Rachel, Blippi, etc.) — channels become "TV
+  # shows", uploads become "episodes".
+  tubearchivist:
+    image: bbilly1/tubearchivist:latest
+    container_name: tubearchivist
+    # No user: directive — bbilly1/tubearchivist's entrypoint runs as
+    # root, chowns its mounts to HOST_UID:HOST_GID, then drops to that
+    # user before launching Django. (Same pattern linuxserver/* images
+    # use with PUID/PGID — different env var names.)
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    env_file:
+      - .api_keys
+    environment:
+      - ES_URL=http://archivist-es:9200
+      - REDIS_CON=redis://archivist-redis:6379
+      # Tells TA's entrypoint who owns the /youtube + /cache mounts so
+      # it doesn't try to chown them on startup. Same pattern other
+      # bind-mounted services use (see PUID_* in .env).
+      - HOST_UID=${PUID_TUBEARCHIVIST}
+      - HOST_GID=${PGID}
+      # Group-writable umask so other media-group services (esp.
+      # Jellyfin's NFO/metadata writer) can write into TA-created
+      # channel folders. Without this TA creates dirs as 755 and
+      # Jellyfin's metadata save fails with "Access denied" even
+      # though it's in the same group.
+      - UMASK=${UMASK}
+      # Allowed hostnames Django will respond to (space-separated).
+      # Add any new public hostname here as well as in the Caddyfile.
+      # Must include the https:// scheme — TA's TA_HOST parser
+      # registers each entry verbatim into CSRF_TRUSTED_ORIGINS, and
+      # Django 4+ requires the scheme to match the request Origin
+      # exactly. Without https:// every POST through Caddy gets a
+      # CSRF rejection that the UI handles by bouncing back to login.
+      - TA_HOST=https://tubearchivist.${DOMAIN} localhost
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_ROOT}/tubearchivist/cache:/cache
+      # Mount the kids/youtube subtree only — TA can't see/touch the
+      # rest of the media library.
+      - ${DATA_ROOT}/media/kids/youtube:/youtube
+    depends_on:
+      - archivist-es
+      - archivist-redis
+    restart: unless-stopped
+
+  # Redis + Elasticsearch use named volumes (managed by docker, owned
+  # by their respective container's internal users). Unlike the
+  # PUID/PGID services above, these images don't honour host UIDs and
+  # the data they store (search indices, ephemeral queues) isn't
+  # human-browsable anyway — bind-mounting under ${CONFIG_ROOT} would
+  # just create an ownership headache for zero gain.
+  archivist-redis:
+    image: redis/redis-stack-server:latest
+    container_name: archivist-redis
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    volumes:
+      - tubearchivist-redis:/data
+    depends_on:
+      - archivist-es
+    restart: unless-stopped
+
+  archivist-es:
+    image: bbilly1/tubearchivist-es:latest
+    container_name: archivist-es
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    env_file:
+      - .api_keys
+    environment:
+      - xpack.security.enabled=true
+      - discovery.type=single-node
+      - path.repo=/usr/share/elasticsearch/data/snapshot
+      # ES is greedy by default — cap heap so it doesn't fight Jellyfin
+      # transcodes for RAM. 1GB is plenty for a single-node deployment
+      # indexing a few kids' channels.
+      - ES_JAVA_OPTS=-Xms512m -Xmx1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - tubearchivist-es:/usr/share/elasticsearch/data
     restart: unless-stopped
 
   caddy:
@@ -317,6 +421,13 @@ services:
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
+
+volumes:
+  # Tube Archivist — Redis + Elasticsearch indices. Named volumes (not
+  # bind mounts) because the images don't honour host PUID/PGID and
+  # the contents are internal indexer state, not user content.
+  tubearchivist-redis:
+  tubearchivist-es:
 
 networks:
   default:

@@ -17,7 +17,7 @@ else
 fi
 
 GROUP_NAME=media
-SERVICES=(jellyfin sonarr radarr prowlarr qbittorrent bazarr navidrome homeassistant)
+SERVICES=(jellyfin sonarr radarr prowlarr qbittorrent bazarr navidrome homeassistant tubearchivist)
 
 echo "==> Creating shared group: $GROUP_NAME"
 if ! getent group "$GROUP_NAME" > /dev/null 2>&1; then
@@ -64,10 +64,11 @@ sed -i "s/^PUID_QBITTORRENT=.*/PUID_QBITTORRENT=${PUIDS[qbittorrent]}/" "$ENV_FI
 sed -i "s/^PUID_BAZARR=.*/PUID_BAZARR=${PUIDS[bazarr]}/" "$ENV_FILE"
 sed -i "s/^PUID_NAVIDROME=.*/PUID_NAVIDROME=${PUIDS[navidrome]}/" "$ENV_FILE"
 sed -i "s/^PUID_HOMEASSISTANT=.*/PUID_HOMEASSISTANT=${PUIDS[homeassistant]}/" "$ENV_FILE"
+sed -i "s/^PUID_TUBEARCHIVIST=.*/PUID_TUBEARCHIVIST=${PUIDS[tubearchivist]}/" "$ENV_FILE"
 
 echo ""
 echo "==> Creating data directories"
-sudo mkdir -p "$DATA_ROOT"/{torrents/{movies,tv,music},media/{movies,tv,music,kids/{movies,tv}}}
+sudo mkdir -p "$DATA_ROOT"/{torrents/{movies,tv,music},media/{movies,tv,music,kids/{movies,tv,youtube}}}
 sudo chown -R "$(whoami):$GROUP_NAME" "$DATA_ROOT"
 sudo chmod -R 775 "$DATA_ROOT"
 

@@ -1,5 +1,6 @@
 import { PANELS as DOTS } from '../config.js';
 import { esc, fmtAgo, fmtClipDay } from '../utils.js';
+import { pushSupported, pushStatus, pushSubscribe, pushUnsubscribe } from '../push.js';
 
 const ALL_ID = 'light.all_floodlights';
 const LIGHTS = [
@@ -231,6 +232,7 @@ function render() {
              </div>
            `;
          }).join('')}
+         ${renderPushRow()}
        </div>` : '')
     + eventsHtml;
   const panicBtn = listEl.querySelector('.fl-panic');
@@ -255,6 +257,72 @@ function render() {
     const btn = row.querySelector('.fl-toggle');
     btn.addEventListener('click', () => toggleSetting(row.dataset.id));
   });
+  const pushBtn = listEl.querySelector('.fl-push-toggle');
+  if (pushBtn) pushBtn.addEventListener('click', onPushClick);
+}
+
+// --- Push notifications row ----------------------------------------
+// State is `pushUiState` — derived from the browser/SW each time the
+// panel renders. Rendering reads it synchronously; refreshPushState
+// updates it asynchronously and re-renders.
+let pushUiState = 'unknown'; // 'unsupported' | 'denied' | 'unsubscribed' | 'subscribed' | 'pending' | 'unknown'
+async function refreshPushState() {
+  try { pushUiState = await pushStatus(); } catch { pushUiState = 'unsupported'; }
+  // Don't trigger a full panel refresh; just patch the row in place
+  // to avoid resetting other transient UI (modal open, etc.).
+  if (root) {
+    const btn = root.querySelector('.fl-push-toggle');
+    const hint = root.querySelector('.fl-push-hint');
+    if (btn) {
+      btn.dataset.state = pushUiState;
+      btn.querySelector('.fl-state').textContent = pushUiToBtnText(pushUiState);
+      btn.classList.toggle('on', pushUiState === 'subscribed');
+      btn.classList.toggle('off', pushUiState !== 'subscribed');
+    }
+    if (hint) hint.textContent = pushUiToHint(pushUiState);
+  }
+}
+function pushUiToBtnText(s) {
+  if (s === 'subscribed') return 'ON';
+  if (s === 'pending')    return '…';
+  return 'OFF';
+}
+function pushUiToHint(s) {
+  if (s === 'unsupported') return 'Not supported in this browser';
+  if (s === 'denied')      return 'Permission blocked — re-enable in browser settings';
+  if (s === 'subscribed')  return 'This device will receive alerts';
+  return 'Tap to enable on this device';
+}
+function renderPushRow() {
+  return `
+    <div class="fl-setting-row fl-push-row">
+      <div class="fl-setting-text">
+        <div class="fl-setting-name">Push notifications</div>
+        <div class="fl-setting-hint fl-push-hint">${esc(pushUiToHint(pushUiState))}</div>
+      </div>
+      <button class="fl-toggle fl-push-toggle ${pushUiState === 'subscribed' ? 'on' : 'off'}" data-state="${pushUiState}">
+        <span class="fl-indicator"></span>
+        <span class="fl-state">${pushUiToBtnText(pushUiState)}</span>
+      </button>
+    </div>
+  `;
+}
+async function onPushClick() {
+  if (pushUiState === 'unsupported' || pushUiState === 'denied') return;
+  const wasSubbed = pushUiState === 'subscribed';
+  pushUiState = 'pending';
+  await refreshPushState(); // patches the row to "pending" state visually
+  pushUiState = 'pending';  // refreshPushState may have overridden — force again
+  // Patch synchronously since refreshPushState pulls from browser API
+  const btn = root && root.querySelector('.fl-push-toggle');
+  if (btn) btn.querySelector('.fl-state').textContent = '…';
+  try {
+    if (wasSubbed) await pushUnsubscribe();
+    else           await pushSubscribe();
+  } catch (e) {
+    console.warn('push toggle failed:', e);
+  }
+  await refreshPushState();
 }
 
 function groupClipsIntoEvents(clips, windowMs = 60000) {
@@ -447,4 +515,13 @@ function mount() {
   return root;
 }
 
-export default { id: 'floodlights', mount, refresh, onShow: refresh };
+// Hook the push state-fetch into the panel lifecycle: pull current
+// state from the browser/SW after each refresh so the UI shows
+// accurate "ON"/"OFF" on first paint and after re-subscribe.
+const _origOnShow = refresh;
+async function onShowWithPush() {
+  await _origOnShow();
+  refreshPushState();
+}
+
+export default { id: 'floodlights', mount, refresh, onShow: onShowWithPush };

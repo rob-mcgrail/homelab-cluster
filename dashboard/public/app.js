@@ -33,7 +33,18 @@ const panelEls = panels.map(p => {
 
 const allDots = () => viewport.querySelectorAll('.dot');
 const W = () => window.innerWidth;
-let page = 3;
+
+// Deep-link routing: location.hash = '#floodlights' (or any panel id)
+// snaps directly to that panel on load. Used by Web Push notifications
+// — the SW navigates to /#<panel-id> when the user taps a notification,
+// and we land them on the right panel without manual swiping.
+const idToIndex = new Map(panels.map((p, i) => [p.id, i]));
+function pageFromHash() {
+  const id = location.hash.replace(/^#/, '');
+  return idToIndex.has(id) ? idToIndex.get(id) : null;
+}
+const hashTarget = pageFromHash();
+let page = hashTarget !== null ? hashTarget : 3;
 let startX = 0, startY = 0, startTime = 0, gesture = null, pullPanel = null;
 
 // ---- desktop navigation paddles ----
@@ -83,6 +94,13 @@ setPos(-page * W(), false);
 updateDots();
 updatePaddles();
 if (panels[page] && panels[page].onShow) panels[page].onShow();
+
+// Re-snap when the hash changes — happens when the SW navigates a
+// running tab to /#<panel> after a notification tap.
+window.addEventListener('hashchange', () => {
+  const target = pageFromHash();
+  if (target !== null && target !== page) snapTo(target);
+});
 
 // Auto-refresh every 15s — only the currently visible panel
 setInterval(() => {

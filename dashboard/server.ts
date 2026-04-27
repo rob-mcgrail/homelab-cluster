@@ -1,6 +1,7 @@
-import { readdir, readFile, rename, stat } from "node:fs/promises";
+import { readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { loadavg, totalmem, freemem, cpus } from "node:os";
 import { statfsSync } from "node:fs";
+import webpush from "web-push";
 
 const DATA_DIR = "/movie-bot-data";
 const PENDING_DIR = `${DATA_DIR}/pending`;
@@ -21,6 +22,58 @@ const PIHOLE_PANEL: "off" | "blocks" | "clients" =
   PIHOLE_PANEL_RAW === "blocks" || PIHOLE_PANEL_RAW === "clients" ? PIHOLE_PANEL_RAW : "off";
 const HASS_URL = process.env.HASS_URL || "http://homeassistant:8123";
 const HASS_TOKEN = process.env.HASS_TOKEN || "";
+
+// Web Push (VAPID). Public key is shipped to the browser on subscribe;
+// private key signs each push. Generated once via
+// `bun -e 'import wp from "web-push"; console.log(wp.generateVAPIDKeys())'`
+// — see .api_keys. If missing, push endpoints all return 503.
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC || "";
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE || "";
+const VAPID_CONTACT = process.env.VAPID_CONTACT || "mailto:admin@example.com";
+const PUSH_ENABLED = !!(VAPID_PUBLIC && VAPID_PRIVATE);
+if (PUSH_ENABLED) webpush.setVapidDetails(VAPID_CONTACT, VAPID_PUBLIC, VAPID_PRIVATE);
+
+// Subscriptions live in a single JSON file in the persisted data dir.
+// One entry per (browser, device) — the endpoint URL is unique enough
+// to dedupe. Pruned automatically on 410 Gone (subscription expired).
+const SUBS_FILE = `${DATA_DIR}/push-subscriptions.json`;
+type PushSub = { endpoint: string; keys: { p256dh: string; auth: string }; createdAt: number };
+async function loadSubs(): Promise<PushSub[]> {
+  try {
+    const txt = await readFile(SUBS_FILE, "utf-8");
+    return JSON.parse(txt);
+  } catch { return []; }
+}
+async function saveSubs(subs: PushSub[]): Promise<void> {
+  await writeFile(SUBS_FILE, JSON.stringify(subs, null, 2));
+}
+// Send a push to every subscriber. 410/404 from the push service means
+// the subscription is permanently dead (uninstalled, lapsed); we drop
+// those. Other errors are logged and the subscription is kept.
+async function pushToAll(payload: { title: string; body?: string; url?: string; icon?: string; tag?: string }): Promise<{ sent: number; pruned: number; failed: number }> {
+  if (!PUSH_ENABLED) return { sent: 0, pruned: 0, failed: 0 };
+  const subs = await loadSubs();
+  const body = JSON.stringify(payload);
+  let sent = 0, pruned = 0, failed = 0;
+  const survivors: PushSub[] = [];
+  for (const s of subs) {
+    try {
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, body);
+      sent++;
+      survivors.push(s);
+    } catch (e: any) {
+      if (e?.statusCode === 410 || e?.statusCode === 404) {
+        pruned++;
+      } else {
+        failed++;
+        survivors.push(s); // transient — retry next time
+        console.error("push send failed:", s.endpoint, e?.statusCode, e?.body);
+      }
+    }
+  }
+  if (pruned > 0) await saveSubs(survivors);
+  return { sent, pruned, failed };
+}
 
 // Entities surfaced + togglable from the dashboard's Floodlights panel.
 // Mixed-domain: lights for the on/off control rows, the input_boolean
@@ -604,6 +657,84 @@ const server = Bun.serve({
         return Response.json({ ok: true });
       } catch {
         return new Response("error", { status: 500 });
+      }
+    }
+
+    // ---- Web Push endpoints ---------------------------------------
+    if (req.method === "GET" && url.pathname === "/api/push/vapid-public") {
+      if (!PUSH_ENABLED) return new Response("not configured", { status: 503 });
+      return Response.json({ key: VAPID_PUBLIC });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/push/subscribe") {
+      if (!PUSH_ENABLED) return new Response("not configured", { status: 503 });
+      try {
+        const body: any = await req.json();
+        if (!body?.endpoint || !body?.keys?.p256dh || !body?.keys?.auth) {
+          return new Response("bad subscription", { status: 400 });
+        }
+        const subs = await loadSubs();
+        // Dedupe by endpoint — same browser re-subscribing replaces the
+        // older entry rather than accumulating duplicates.
+        const filtered = subs.filter(s => s.endpoint !== body.endpoint);
+        filtered.push({
+          endpoint: body.endpoint,
+          keys: { p256dh: body.keys.p256dh, auth: body.keys.auth },
+          createdAt: Date.now(),
+        });
+        await saveSubs(filtered);
+        return Response.json({ ok: true, total: filtered.length });
+      } catch {
+        return new Response("bad request", { status: 400 });
+      }
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/push/unsubscribe") {
+      try {
+        const body: any = await req.json();
+        if (!body?.endpoint) return new Response("bad request", { status: 400 });
+        const subs = await loadSubs();
+        const filtered = subs.filter(s => s.endpoint !== body.endpoint);
+        await saveSubs(filtered);
+        return Response.json({ ok: true, total: filtered.length });
+      } catch {
+        return new Response("bad request", { status: 400 });
+      }
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/push/test") {
+      const result = await pushToAll({
+        title: "Dashboard test",
+        body: "Push is working — alerts will arrive here.",
+        tag: "dashboard-test",
+        url: "/",
+      });
+      return Response.json(result);
+    }
+
+    // Webhook receiver. HA (or any local script) POSTs here when an
+    // event worth notifying about happens. Body: {title, body?, url?,
+    // icon?, tag?}. Auth is a shared token in the Authorization header
+    // — token comes from .api_keys, must match X-Push-Token. Local-
+    // network only because we never expose dashboard:8000 publicly,
+    // but token-gated as defense in depth in case that changes.
+    if (req.method === "POST" && url.pathname === "/api/event") {
+      const want = process.env.PUSH_EVENT_TOKEN || "";
+      const got = req.headers.get("x-push-token") || "";
+      if (!want || got !== want) return new Response("unauthorized", { status: 401 });
+      try {
+        const body: any = await req.json();
+        if (typeof body?.title !== "string") return new Response("bad payload", { status: 400 });
+        const result = await pushToAll({
+          title: body.title,
+          body: body.body,
+          url: body.url,
+          icon: body.icon,
+          tag: body.tag,
+        });
+        return Response.json(result);
+      } catch {
+        return new Response("bad request", { status: 400 });
       }
     }
 

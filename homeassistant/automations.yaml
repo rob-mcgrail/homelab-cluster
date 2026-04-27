@@ -45,6 +45,14 @@
     # reparenting. Sequential calls here are effectively simultaneous.
     - service: shell_command.record_front_door
     - service: shell_command.record_deck
+    # Push notification to every subscribed dashboard browser. Same
+    # 45s debounce applies because the rest_command runs inside the
+    # automation lock.
+    - service: rest_command.dashboard_notify
+      data:
+        title: "Someone or something is outside"
+        url: "/#floodlights"
+        tag: "cam-event"
     # Hold the automation "running" so any further triggers in this
     # window are dropped — both clips are already being captured.
     - delay: "00:00:45"

@@ -107,6 +107,22 @@ shell_command:
     < /dev/null > /dev/null 2>&1 &'
 
 # Split-out files for things you'll edit a lot.
+# Dashboard webhook — POSTs an event payload to the dashboard's
+# /api/event endpoint, which fans out a Web Push notification to every
+# subscribed browser. Used by the cam-detection automation. Auth via a
+# shared token from secrets.yaml; the dashboard rejects calls whose
+# X-Push-Token header doesn't match its $PUSH_EVENT_TOKEN env.
+rest_command:
+  dashboard_notify:
+    url: "http://dashboard:8000/api/event"
+    method: post
+    content_type: "application/json"
+    headers:
+      X-Push-Token: !secret push_event_token
+    payload: >-
+      {"title": {{ title|tojson }}, "body": {{ (body or '')|tojson }},
+       "url": {{ (url or '/')|tojson }}, "tag": {{ (tag or 'dashboard')|tojson }}}
+
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml

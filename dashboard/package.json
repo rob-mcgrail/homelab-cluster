@@ -3,5 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "bun run server.ts"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
   }
 }

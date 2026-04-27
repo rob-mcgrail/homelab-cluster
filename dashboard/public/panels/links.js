@@ -13,6 +13,7 @@ const SERVICES = [
   { host: 'navidrome',                name: 'Navidrome',                   desc: 'Music streaming server' },
   { host: 'ha',                       name: 'Home Assistant',              desc: 'Floodlights, sirens, automations' },
   { host: 'pihole',                   name: 'Pi-hole',                     desc: 'Network-wide DNS ad-blocker', path: '/admin/' },
+  { host: 'tubearchivist',            name: 'Tube Archivist',              desc: 'YouTube archiver (kids YT shows)' },
 ];
 
 const DOMAIN = 'office-computer-online-worldwide.org';

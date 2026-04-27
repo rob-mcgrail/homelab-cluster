@@ -113,6 +113,64 @@ Modal fullscreen is also mobile-only — `requestFullscreen()` + landscape-lock 
 
 ---
 
+## Push notifications
+
+Web Push from the dashboard. Two notification sources wired up so far:
+
+- **Camera detection** — `automation.record_event_clips` calls `rest_command.dashboard_notify` after firing both `shell_command.record_*`. Title: "Someone or something is outside". Tap → opens dashboard at `/#floodlights`.
+- **Recommendations bot** — `movie-bot-recommendations/run-recs.sh` checks if `recommendations.jsonl` got new lines after the claude run; if so, POSTs to `/api/event` directly. Title: "Your recs are ready". Tap → opens dashboard at `/#recs`.
+
+### Architecture
+
+```
+HA event ──▶ rest_command.dashboard_notify ──▶ POST dashboard:8000/api/event ──▶ webpush.sendNotification (per stored sub) ──▶ browser SW ──▶ OS notification
+```
+
+Or for non-HA sources (like `run-recs.sh`):
+
+```
+host script ──▶ POST localhost:8000/api/event ──▶ same fanout
+```
+
+### Auth
+
+The `/api/event` endpoint requires `X-Push-Token` matching `$PUSH_EVENT_TOKEN` from `.api_keys`. HA reads the same token via `secrets.yaml` (gitignored, holds `push_event_token: ...`). Defense in depth: dashboard's port 8000 is bound `127.0.0.1:8000:8000` so it's only reachable from the host or via Caddy (which doesn't expose `/api/event` because nothing routes there externally).
+
+### VAPID
+
+Single keypair for the whole dashboard server, in `.api_keys` as `VAPID_PUBLIC` / `VAPID_PRIVATE` / `VAPID_CONTACT`. Generated once via:
+
+```sh
+docker exec dashboard bun -e 'import wp from "web-push"; const k = wp.generateVAPIDKeys(); console.log(k.publicKey, k.privateKey)'
+```
+
+Public key is fetched by browsers via `/api/push/vapid-public` on subscribe. Private key signs every push. If lost or rotated, every existing subscription becomes invalid and devices must re-subscribe (no harm — the SW prompts on next visit).
+
+### Per-device subscription
+
+Each browser/device subscribes independently via the **Push notifications** toggle in the dashboard's Floodlights panel (RECORDING section). On tap:
+
+1. `Notification.requestPermission()` — must be in response to a user gesture
+2. `serviceWorker.register('/sw.js')`
+3. `pushManager.subscribe({ applicationServerKey: VAPID_PUBLIC })`
+4. POST the subscription JSON (`endpoint`, `keys.p256dh`, `keys.auth`) to `/api/push/subscribe`
+
+Subscriptions are persisted in `/movie-bot-data/push-subscriptions.json`. Dead subscriptions (HTTP 410/404 from the push service) are auto-pruned on the next push attempt.
+
+**iOS caveat**: Safari only allows Web Push from sites installed as PWAs. On iPhone: Share → Add to Home Screen → open the home-screen icon → then subscribe via the toggle. Android Chrome works without this dance.
+
+### Deep linking
+
+Notification payloads carry a `url` field (e.g., `/#floodlights`, `/#recs`). The SW's `notificationclick` handler navigates the dashboard tab there. `app.js` has hash routing — `idToIndex` maps each panel's `id` to its index, so `#<id>` snaps to the right panel on load and on `hashchange`.
+
+### Adding a new notification source
+
+1. Pick a panel id for the deep link target (`floodlights`, `recs`, etc.)
+2. POST `{title, body?, url?, tag?}` to `dashboard:8000/api/event` (HA) or `localhost:8000/api/event` (host script) with `X-Push-Token: $PUSH_EVENT_TOKEN`
+3. `tag` controls notification stacking — same tag replaces, different tag stacks
+
+---
+
 ## Presence detection (`binary_sensor.rob_home`)
 
 A template binary sensor that's `on` if **either** signal says we're
