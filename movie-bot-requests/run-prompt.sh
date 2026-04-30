@@ -33,8 +33,10 @@ for f in "$PENDING_DIR"/*.txt; do
     full_prompt=$(<"$TEMPLATE")
     full_prompt="${full_prompt//\{\{PROMPT\}\}/$user_prompt}"
 
-    # Run Claude Code
-    cd "$PROJECT_DIR" && "$CLAUDE" --dangerously-skip-permissions -p "$full_prompt" \
+    # Run Claude Code on Sonnet — this job is mechanical arr-stack
+    # management (search title, pick profile, add to Sonarr/Radarr,
+    # trigger search). Doesn't need Opus's deeper judgment.
+    cd "$PROJECT_DIR" && "$CLAUDE" --model claude-sonnet-4-6 --dangerously-skip-permissions -p "$full_prompt" \
         > "$COMPLETED_DIR/${base}.out" 2>&1
 
     # Move processed prompt
