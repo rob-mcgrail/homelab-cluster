@@ -49,6 +49,7 @@ light:
     entities:
       - light.front_door_floodlight_cam_floodlight
       - light.deck_floodlight_cam_floodlight
+      - light.shed_floodlight
 
 # Extra dashboard for floodlight + siren controls. The default
 # "Overview" dashboard stays UI-editable; this one is YAML so it lives
@@ -104,6 +105,18 @@ shell_command:
     -movflags +faststart
     -f mp4
     /media/cam-recordings/deck/{{ now().strftime("%Y%m%dT%H%M%SZ") }}.mp4
+    < /dev/null > /dev/null 2>&1 &'
+  record_shed: >-
+    sh -c 'ffmpeg -y -loglevel error
+    -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -hwaccel_output_format vaapi
+    -rtsp_transport tcp -i rtsp://go2rtc:8554/shed
+    -t 60
+    -vf "scale_vaapi=w=1920:h=-1"
+    -c:v h264_vaapi -rc_mode CQP -global_quality 26
+    -c:a aac -b:a 96k
+    -movflags +faststart
+    -f mp4
+    /media/cam-recordings/shed/{{ now().strftime("%Y%m%dT%H%M%SZ") }}.mp4
     < /dev/null > /dev/null 2>&1 &'
 
 # Split-out files for things you'll edit a lot.

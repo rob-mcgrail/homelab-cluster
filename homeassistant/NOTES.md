@@ -8,14 +8,14 @@ doesn't render markdown.
 
 ## Current state (set up 2026-04-25)
 
-- **Cameras integrated**: `Front door floodlight cam` + `Deck floodlight cam` via the Reolink integration.
+- **Cameras integrated**: `Front door floodlight cam`, `Deck floodlight cam`, `Shed` via the Reolink integration. (Note: the shed cam was added with the short name `Shed`, so its entities are `binary_sensor.shed_person`, `light.shed_floodlight`, etc — no `_floodlight_cam_` infix like the other two.)
 - **Custom HA image** (`./homeassistant-image/Dockerfile`): adds Intel's `intel-media-driver` (iHD VAAPI userspace) and sets `LIBVA_DRIVER_NAME=iHD` so ffmpeg can hardware-decode/encode on the UHD 770 iGPU. Compose adds `/dev/dri:/dev/dri` and `group_add: ["993"]` (the host `render` group) so the container can talk to the device.
 - **Automations** in `automations.yaml`:
-  - *Floodlights: turn on when either cam detects person/vehicle* — gated on `sun.sun = below_horizon` and `input_boolean.floodlights_auto = on`.
+  - *Floodlights: turn on when any cam detects person/vehicle* — gated on `sun.sun = below_horizon` and `input_boolean.floodlights_auto = on`. Trusted triggers are front_door person (instant), front_door vehicle (1.5s sustained), deck person, shed person. Deck + shed vehicle classifiers are excluded (they misfire on animals).
   - *Floodlights: turn off after 2 min of no detection* — auto-off timer resets on every fresh detection.
-  - *Record HD clips — both cams on any person/vehicle event* — single combined automation. On any person/vehicle trigger from EITHER cam, fires a 60s VAAPI ffmpeg clip on BOTH cams. Cross-triggering is latency insurance: the detect→record chain has ~1.5s of dead time, during which a fast target can leave one cam's FOV and enter the other before its own AI fires. Anchoring both recordings to the first detection captures both perspectives without paying the second cam's detection-stack latency on top. **Skipped during 7am–7pm when `binary_sensor.rob_home = on`** (we don't need clips of ourselves in our own house). Always records at night, or any time we're away.
+  - *Record HD clips — all cams on any person/vehicle event* — single combined automation. On any AI person/vehicle trigger from ANY cam, fires a 60s VAAPI ffmpeg clip on ALL THREE cams. Animal triggers are intentionally excluded (too many possum/cat false-positives clogged the clip list). Cross-triggering is latency insurance: the detect→record chain has ~1.5s of dead time, during which a fast target can leave one cam's FOV and enter another before that cam's own AI fires. Anchoring all recordings to the first detection captures every perspective without paying the other cams' detection-stack latency on top. **Skipped during 7am–7pm when `input_boolean.skip_daytime_recordings = on`** (we don't need clips of ourselves in our own house). Always records at night, or any time the user has flipped the toggle off.
   - *Bootstrap: default floodlights_auto to on* — first-boot only.
-- **Scripts**: `panic_floodlights_and_sirens` — both floodlights on + both sirens on. Manual call only (Lovelace Floodlights dashboard, dashboard PANIC button).
+- **Scripts**: `panic_floodlights_and_sirens` — all floodlights on + all sirens on. Manual call only (Lovelace Floodlights dashboard, dashboard PANIC button).
 - **Helpers**: `input_boolean.floodlights_auto` (master kill-switch for the auto-on rule), `binary_sensor.rob_home` (template, see below).
 
 ### Real entity IDs
@@ -26,11 +26,15 @@ doesn't render markdown.
 | Front vehicle | `binary_sensor.front_door_floodlight_cam_vehicle` |
 | Deck person | `binary_sensor.deck_floodlight_cam_person` |
 | Deck vehicle | `binary_sensor.deck_floodlight_cam_vehicle` |
+| Shed person | `binary_sensor.shed_person` |
+| Shed vehicle | `binary_sensor.shed_vehicle` |
 | Front floodlight | `light.front_door_floodlight_cam_floodlight` |
 | Deck floodlight | `light.deck_floodlight_cam_floodlight` |
-| All floodlights | `light.all_floodlights` (group of the two above) |
+| Shed floodlight | `light.shed_floodlight` |
+| All floodlights | `light.all_floodlights` (group of the three above) |
 | Front siren | `siren.front_door_floodlight_cam_siren` |
 | Deck siren | `siren.deck_floodlight_cam_siren` |
+| Shed siren | `siren.shed_siren` |
 | Auto toggle | `input_boolean.floodlights_auto` |
 | Rob home | `binary_sensor.rob_home` |
 
@@ -57,7 +61,9 @@ Two non-obvious things to know:
 
 **`mode: single` + `delay: 45s`** on the single combined automation gives one shared event lock — a follow-up trigger from either cam within 45s is dropped because both clips are already in flight. Continuous activity (someone prowling for >45s) will produce sequential paired clips since the cam re-arms its `person` sensor on a similar cadence.
 
-Files land at `/mnt/disk2/cam-recordings/{front_door,deck}/<UTC-timestamp>.mp4` (bind-mounted into HA at `/media/cam-recordings/` and into the dashboard at `/cam-recordings:ro`). Pruned daily by `scripts/cam-recordings-prune.sh` (3-day retention).
+Files land at `/mnt/disk2/cam-recordings/{front_door,deck,shed}/<UTC-timestamp>.mp4` (bind-mounted into HA at `/media/cam-recordings/` and into the dashboard at `/cam-recordings:ro`). Pruned daily by `scripts/cam-recordings-prune.sh` (3-day retention).
+
+**Adding another cam**: env var must be loaded by the go2rtc container. `.api_keys` is read by `env_file:` at container *create* time, not on restart — `docker compose restart go2rtc` after adding a new `REOLINK_<NAME>_PASSWORD` will leave the new var missing inside the container and go2rtc will log `invalid userinfo` for the unsubstituted `${VAR}`. Fix: `docker compose up -d --force-recreate go2rtc`.
 
 ### Cam-side encoding (set via Reolink HTTP API)
 

@@ -85,6 +85,7 @@ const FLOODLIGHT_ENTITIES = [
   "light.all_floodlights",
   "light.front_door_floodlight_cam_floodlight",
   "light.deck_floodlight_cam_floodlight",
+  "light.shed_floodlight",
   "input_boolean.skip_daytime_recordings",
 ];
 
@@ -522,7 +523,7 @@ const server = Bun.serve({
       //                                No per-frame JPEG re-encode —
       //                                much lighter than MJPEG.
       // All paths transcode through Intel VAAPI on the iGPU.
-      const valid = new Set(["front_door", "deck"]);
+      const valid = new Set(["front_door", "deck", "shed"]);
       // Match /api/camera-(preview|stream)[-mobile]/<cam>. The optional
       // -mobile suffix routes to a smaller go2rtc variant (960×288,
       // ~1/4 per-frame bytes) for phones whose Chrome MJPEG handler
@@ -580,7 +581,7 @@ const server = Bun.serve({
       // so the snapshot matches what's live.
       const m = url.pathname.match(/^\/api\/camera-snapshot\/([a-z_]+)$/);
       if (m && req.method === "GET") {
-        const valid = new Set(["front_door", "deck"]);
+        const valid = new Set(["front_door", "deck", "shed"]);
         if (!valid.has(m[1])) return new Response("bad slug", { status: 404 });
         try {
           const r = await fetch(`http://go2rtc:1984/api/frame.jpeg?src=${m[1]}`);
@@ -598,7 +599,7 @@ const server = Bun.serve({
     }
 
     if (req.method === "GET" && url.pathname === "/api/cam-recordings") {
-      const cams = ["front_door", "deck"] as const;
+      const cams = ["front_door", "deck", "shed"] as const;
       const out: { cam: string; filename: string; mtimeMs: number; sizeBytes: number }[] = [];
       for (const cam of cams) {
         try {
@@ -620,7 +621,7 @@ const server = Bun.serve({
       // Serve a single clip — Bun.file responses handle Range requests
       // automatically, so the browser can scrub through the video without
       // downloading the whole file.
-      const m = url.pathname.match(/^\/api\/cam-recording\/(front_door|deck)\/([\w.-]+\.mp4)$/);
+      const m = url.pathname.match(/^\/api\/cam-recording\/(front_door|deck|shed)\/([\w.-]+\.mp4)$/);
       if (m && req.method === "GET") {
         const path = `/cam-recordings/${m[1]}/${m[2]}`;
         const file = Bun.file(path);
@@ -652,6 +653,7 @@ const server = Bun.serve({
             entity_id: [
               "siren.front_door_floodlight_cam_siren",
               "siren.deck_floodlight_cam_siren",
+              "siren.shed_siren",
             ],
           }),
         });

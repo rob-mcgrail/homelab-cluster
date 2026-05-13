@@ -1,18 +1,18 @@
 - id: record_event_clips
-  alias: "Record HD clips — both cams on any AI detection"
+  alias: "Record HD clips — all cams on any person/vehicle detection"
   description: >-
-    On any AI-classified alert from EITHER cam (person, vehicle, or
-    animal), fire a 60s ffmpeg record on BOTH cams. Cross-triggering
-    is latency insurance: by the time we react to a single cam's AI
-    firing (detect ~200ms + webhook ~100ms + HA dispatch ~100ms +
+    On any AI-classified person/vehicle alert from ANY cam, fire a
+    60s ffmpeg record on ALL cams. Cross-triggering is latency
+    insurance: by the time we react to a single cam's AI firing
+    (detect ~200ms + webhook ~100ms + HA dispatch ~100ms +
     ffmpeg first-I-frame ~1s ≈ 1.5s), a fast target (runner, car) can
-    already be in the second cam's FOV but not yet have triggered its
-    own AI. Anchoring both recordings to the first detection captures
-    both perspectives without paying the second cam's detection-stack
+    already be in another cam's FOV but not yet have triggered its
+    own AI. Anchoring all recordings to the first detection captures
+    every perspective without paying the other cams' detection-stack
     latency on top.
     mode:single + 45s delay = ONE combined event lock — a follow-up
-    trigger from either cam within 45s is dropped because both clips
-    are already in flight.
+    trigger from any cam within 45s is dropped because clips are
+    already in flight.
     Daytime gate is the manual `input_boolean.skip_daytime_recordings`
     toggle — when on (default), clips are skipped 7am–7pm. Replaced
     the auto presence check (binary_sensor.rob_home) because HA is
@@ -22,27 +22,27 @@
     control; flip it off via either dashboard before going out for
     the day. Re-introduce auto-presence once HA is externally
     reachable (Cloudflare Tunnel planned).
-    Less conservative than the floodlight automations on purpose:
-    recording a 60s clip that turns out to be a possum is cheap
-    (one file to scroll past), but missing a real event because we
-    were too strict is annoying. So this fires on:
-    - person, vehicle, animal — both cams, all instant
+    Triggers:
+    - person, vehicle — all cams, all instant
+    - NOT animal — too many false positives from possums/cats at
+      night clogging up the clip list
     - NOT motion — that channel is dominated by shadows/wind/etc and
       would record constantly
-    The deck-vehicle classifier is well known to misfire on animals
-    (see floodlights_on_when_either_cam_detects), but that's fine
-    here — if it fires, either an animal IS there (worth a clip) or
-    a real vehicle is there (also worth a clip). We don't filter.
+    The deck-vehicle + shed-vehicle classifiers are known to misfire
+    on animals (see floodlights_on_when_either_cam_detects), but
+    that's fine here — if it fires, either an animal IS there
+    (acceptable spurious clip) or a real vehicle is there (worth a
+    clip). We don't filter.
   mode: single
   trigger:
     - platform: state
       entity_id:
         - binary_sensor.front_door_floodlight_cam_person
         - binary_sensor.front_door_floodlight_cam_vehicle
-        - binary_sensor.front_door_floodlight_cam_animal
         - binary_sensor.deck_floodlight_cam_person
         - binary_sensor.deck_floodlight_cam_vehicle
-        - binary_sensor.deck_floodlight_cam_animal
+        - binary_sensor.shed_person
+        - binary_sensor.shed_vehicle
       to: "on"
   condition:
     - condition: or
@@ -54,11 +54,12 @@
           after: "19:00:00"
           before: "07:00:00"
   action:
-    # Both shell_commands are detached (sh -c '...&'), so each returns
-    # ~immediately and both ffmpegs run in parallel under PID 1
+    # All shell_commands are detached (sh -c '...&'), so each returns
+    # ~immediately and all ffmpegs run in parallel under PID 1
     # reparenting. Sequential calls here are effectively simultaneous.
     - service: shell_command.record_front_door
     - service: shell_command.record_deck
+    - service: shell_command.record_shed
     # Push notification to every subscribed dashboard browser. Same
     # 45s debounce applies because the rest_command runs inside the
     # automation lock.
@@ -112,12 +113,12 @@
         entity_id: input_boolean.skip_daytime_recordings
 
 - id: floodlights_on_when_either_cam_detects
-  alias: "Floodlights: turn on when either cam detects person/vehicle"
+  alias: "Floodlights: turn on when any cam detects person/vehicle"
   description: >-
-    Either Reolink cam sees a human or vehicle → both floodlights on.
+    Any Reolink cam sees a human or vehicle → all floodlights on.
     Skipped during daylight and when the auto toggle is off. See
     record_event_clips for trigger shape rationale (person instant,
-    front_door vehicle 1.5s sustained, deck vehicle ignored as
+    front_door vehicle 1.5s sustained, deck + shed vehicle ignored as
     misclassification).
   mode: single
   trigger:
@@ -125,6 +126,7 @@
       entity_id:
         - binary_sensor.front_door_floodlight_cam_person
         - binary_sensor.deck_floodlight_cam_person
+        - binary_sensor.shed_person
       to: "on"
     - platform: state
       entity_id:
@@ -147,19 +149,20 @@
         entity_id:
           - light.front_door_floodlight_cam_floodlight
           - light.deck_floodlight_cam_floodlight
+          - light.shed_floodlight
 
 - id: floodlights_off_after_quiet_period
   alias: "Floodlights: turn off after 2 min of no detection"
   description: >-
-    Both floodlights off once ALL trusted detection sensors have been
-    off for 2 minutes uninterrupted. Any new alert from either camera
+    All floodlights off once ALL trusted detection sensors have been
+    off for 2 minutes uninterrupted. Any new alert from any camera
     resets the timer (so successive detections extend the window).
     Gated on the auto toggle — if you disable auto mid-event, the
     lights stay on for you to control manually. Mirrors the trusted-
-    signal set used by the on-automation: both cams' person sensors
-    plus front_door vehicle. Deck vehicle is excluded because it's
-    treated as untrusted (animal misclassifications) — its OFF state
-    shouldn't gate anything.
+    signal set used by the on-automation: every cam's person sensor
+    plus front_door vehicle. Deck + shed vehicle are excluded because
+    they're treated as untrusted (animal misclassifications) — their
+    OFF state shouldn't gate anything.
   mode: single
   trigger:
     - platform: state
@@ -167,6 +170,7 @@
         - binary_sensor.front_door_floodlight_cam_person
         - binary_sensor.front_door_floodlight_cam_vehicle
         - binary_sensor.deck_floodlight_cam_person
+        - binary_sensor.shed_person
       to: "off"
       for:
         minutes: 2
@@ -183,6 +187,9 @@
     - condition: state
       entity_id: binary_sensor.deck_floodlight_cam_person
       state: "off"
+    - condition: state
+      entity_id: binary_sensor.shed_person
+      state: "off"
     # If the user turned the auto toggle off, leave the lights as they
     # are — they probably wanted manual control.
     - condition: state
@@ -194,3 +201,4 @@
         entity_id:
           - light.front_door_floodlight_cam_floodlight
           - light.deck_floodlight_cam_floodlight
+          - light.shed_floodlight
