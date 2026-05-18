@@ -230,6 +230,187 @@ Change the value in `docker-compose.yml` and `docker compose up -d dashboard` to
 
 Data lives on a drive pool via mergerfs. See `CLAUDE.md` for details on the storage setup and how to add drives.
 
+## External access (optional)
+
+By default the entire stack is LAN-only — every subdomain resolves to your server's private IP via the wildcard A record, and there are no inbound ports open at the router. The setup below adds external access to a single hostname (the dashboard) via a Cloudflare Tunnel, gated by a stateless cookie that can only be **minted from the LAN**. Once minted, the cookie is good for 21 days (configurable) and works wherever you are — mobile data, foreign wifi, on a plane, etc.
+
+The pattern: physical LAN presence is the only credential that issues a long-lived, offline-usable cookie. Anyone who's been on the LAN gets in; anyone who hasn't can't — even with full knowledge of your domain.
+
+### How it works
+
+External request flow:
+
+1. Browser → Cloudflare edge → persistent QUIC tunnel → `cloudflared` (host systemd service) → Caddy on `127.0.0.1:443` → Caddy's `www.{DOMAIN}` block.
+2. Caddy `forward_auth` calls `auth:8000/verify`. The auth container is a ~50-line Bun service that checks the `homelab_auth` cookie (HMAC-SHA256 of an expiry timestamp, keyed by `AUTH_SECRET`, constant-time compared).
+3. If the cookie verifies: 2xx, dashboard renders. If not: auth returns a 302 to `https://auth.www.{DOMAIN}/?next=<original URL>`, Caddy passes the redirect through.
+4. `auth.www.{DOMAIN}` resolves only via the existing wildcard → `${LAN_IP}` (a private IP, unreachable externally) and isn't listed in cloudflared's ingress rules. So the cookie can only be minted from inside the LAN.
+5. Cookie is stateless — no DB, no callback to Cloudflare — so it works on devices that are offline, on a flaky connection, or behind weird captive portals.
+
+### Setup
+
+#### 1. Generate an auth secret
+
+```sh
+echo "AUTH_SECRET=$(openssl rand -hex 32)" >> .api_keys
+echo "AUTH_COOKIE_LIFETIME_DAYS=21" >> .api_keys
+```
+
+Rotating `AUTH_SECRET` later invalidates every previously-issued cookie.
+
+#### 2. Bring up the auth container
+
+The `auth` compose service, Caddy's `forward_auth` directive on `www.{DOMAIN}`, and the `auth.www.{DOMAIN}` site block are already in the repo. Apply:
+
+```sh
+docker compose up -d --build auth
+docker compose restart caddy
+```
+
+Verify from a LAN browser by opening `https://www.{DOMAIN}` in a private window — you should bounce to `auth.www.{DOMAIN}`, get a cookie, and land on the dashboard. DevTools should show the cookie with `Domain=www.{DOMAIN}`, `Expires` ~21 days out, `HttpOnly`, `Secure`.
+
+Once it works, you can mint a fresh cookie any time by tapping the **Auth** link in the dashboard's Services panel — useful right before a trip.
+
+#### 3. Install cloudflared on the host
+
+cloudflared runs as a systemd service on the host, not in docker — there's no reason to add docker-networking complexity for a process that just dials outbound.
+
+```sh
+sudo mkdir -p --mode=0755 /usr/share/keyrings
+curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+  | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/cloudflared.list
+sudo apt-get update && sudo apt-get install -y cloudflared
+```
+
+#### 4. Create the tunnel
+
+```sh
+cloudflared tunnel login                          # interactive; opens a browser to authorize the zone
+cloudflared tunnel create homelab                 # prints the tunnel UUID
+source .env
+cloudflared tunnel route dns homelab "www.${DOMAIN}"
+```
+
+The third command creates a CNAME `www.{DOMAIN} → <uuid>.cfargotunnel.com` at Cloudflare. It's more specific than the wildcard A record, so it overrides the wildcard for `www` only — all your other subdomains keep resolving to your LAN IP.
+
+#### 5. Move credentials + write the tunnel config
+
+```sh
+UUID=$(cloudflared tunnel list | awk '/homelab/{print $1; exit}')
+sudo mkdir -p /etc/cloudflared
+sudo mv ~/.cloudflared/${UUID}.json /etc/cloudflared/
+sudo chown root:root /etc/cloudflared/${UUID}.json
+sudo chmod 600 /etc/cloudflared/${UUID}.json
+
+source .env
+sudo tee /etc/cloudflared/config.yml >/dev/null <<EOF
+tunnel: ${UUID}
+credentials-file: /etc/cloudflared/${UUID}.json
+
+# www is the only hostname routed through the tunnel. Anything else
+# falls through to a 404 even if its name happened to resolve to
+# cfargotunnel.com. originServerName makes cloudflared send SNI matching
+# the LE cert Caddy serves, so Caddy picks the right site block and TLS
+# validates cleanly against 127.0.0.1:443.
+ingress:
+  - hostname: www.${DOMAIN}
+    service: https://localhost:443
+    originRequest:
+      originServerName: www.${DOMAIN}
+  - service: http_status:404
+
+no-autoupdate: true
+EOF
+```
+
+#### 6. Install + start the systemd service
+
+```sh
+sudo cloudflared service install
+sudo systemctl status cloudflared --no-pager
+```
+
+`cloudflared service install` creates `/etc/systemd/system/cloudflared.service` pointing at `/etc/cloudflared/config.yml`, enables it, and starts it. Look for `active (running)` and "Registered tunnel connection" lines in `journalctl -u cloudflared -n 30 --no-pager` (usually 4 lines, one per Cloudflare edge POP).
+
+#### 7. Smoke test from outside the LAN
+
+From a phone on mobile data (or a hotspot off your home wifi):
+
+```
+https://www.{DOMAIN}
+```
+
+- **Without a cookie:** browser bounces to `auth.www.{DOMAIN}` which doesn't resolve to anything routable from outside — you get a connection error. That's the gate working as intended.
+- **With a cookie** (mint one first by visiting `auth.www.{DOMAIN}` from the LAN): dashboard loads normally over the tunnel.
+
+#### 8. (Recommended) Keep LAN dashboard traffic local
+
+After step 4, every DNS resolver — including Pi-hole's upstream — sends `www.{DOMAIN}` to the tunnel. LAN browsers still reach the dashboard, but their traffic round-trips through Cloudflare before coming back to your house. Functionally fine; latency-wise wasteful.
+
+In Pi-hole admin → Settings → Local DNS Records, add:
+
+```
+www.{DOMAIN}    {LAN_IP}
+```
+
+Internal queries are then answered directly with your LAN IP, bypassing the tunnel. External queries still hit Cloudflare and the tunnel.
+
+### Extending the gate to other services
+
+The auth gate is reusable. To put another web service behind it (e.g. exposing Sonarr externally):
+
+1. **Widen the cookie's `Domain` attribute** from `www.{DOMAIN}` to `{DOMAIN}` so it's sent to all subdomains. One-line change in `auth/server.ts`:
+   ```ts
+   const COOKIE_DOMAIN = DOMAIN;
+   ```
+2. **Factor the directive into a Caddyfile snippet** so each protected service is a one-liner:
+   ```caddy
+   (auth) {
+       forward_auth auth:8000 {
+           uri /verify
+           copy_headers Cookie
+       }
+   }
+
+   sonarr.{$DOMAIN} {
+       import auth
+       reverse_proxy sonarr:8989
+   }
+   ```
+3. **Add an ingress rule** to `/etc/cloudflared/config.yml`:
+   ```yaml
+   - hostname: sonarr.{DOMAIN}
+     service: https://localhost:443
+     originRequest:
+       originServerName: sonarr.{DOMAIN}
+   ```
+4. **Route the DNS** and reload:
+   ```sh
+   cloudflared tunnel route dns homelab "sonarr.${DOMAIN}"
+   sudo systemctl restart cloudflared
+   docker compose restart caddy
+   ```
+
+Which services fit this model — and which don't:
+
+| Service | Cookie gate? | Why |
+|---------|--------------|-----|
+| Dashboard (`www`) | Yes | Browser-only, no native app. |
+| Sonarr / Radarr / Prowlarr / Bazarr | Yes | Pure web UI + REST. Internal containers reach each other via the docker network (`sonarr:8989`, not via Caddy), so cross-service API calls aren't affected. |
+| qBittorrent | Yes | Web UI only. |
+| Jellyfin | No | Native apps (Android TV, iOS) authenticate with bearer tokens, not cookies — they'd bounce off the gate on every API call. |
+| Navidrome | No | Subsonic-API clients (Symfonium, DSub) authenticate via query-param tokens. |
+| Home Assistant | No | The Companion app uses long-lived bearer tokens; mobile push relies on the app reaching HA. |
+
+For services that don't fit, either leave them LAN-only or pick a different external-access pattern (Cloudflare Access service tokens, Tailscale, WireGuard).
+
+### What this protects (and doesn't)
+
+- **Protects:** external HTTP access without a valid HMAC cookie. The cookie can only be obtained from inside the LAN, so an attacker who knows your domain still can't reach the dashboard from the internet.
+- **Doesn't protect:** anyone who has a cookie. The cookie carries no per-user identity, can't be revoked individually, and only expires on time. If a device with a cookie is lost or compromised, rotate `AUTH_SECRET` to invalidate every cookie at once.
+- **Implicit trust assumption:** anyone on the LAN can mint a cookie. If your LAN includes a guest wifi you don't trust, isolate it on a separate VLAN or skip the LAN-bootstrap pattern entirely.
+
 ## File structure
 
 ```
@@ -238,6 +419,7 @@ Data lives on a drive pool via mergerfs. See `CLAUDE.md` for details on the stor
 docker-compose.yml      # All service definitions
 Caddyfile               # Reverse proxy + HTTPS config
 dashboard/              # Bun web app — the Movie Bot UI
+auth/                   # Bun cookie-minter for the LAN-bootstrapped auth gate (External access section)
 movie-bot-requests/     # Cron worker that consumes the prompt queue (runs every minute)
 movie-bot-download-triage/ # Cron worker that triages the qBit queue + promotes fresh requests (every 4h)
 movie-bot-recommendations/ # Cron worker that generates weekly film recs (Sunday 06:00 UTC)

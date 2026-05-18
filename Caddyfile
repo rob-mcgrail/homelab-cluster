@@ -40,7 +40,25 @@ ha.{$DOMAIN} {
 }
 
 www.{$DOMAIN} {
+	# Cookie gate. forward_auth calls auth:8000/verify; on 2xx the request
+	# proceeds to dashboard, on 3xx the redirect (to auth.www.{DOMAIN}) is
+	# passed straight back to the browser.
+	forward_auth auth:8000 {
+		uri /verify
+		copy_headers Cookie
+	}
 	reverse_proxy dashboard:8000
+}
+
+auth.www.{$DOMAIN} {
+	# Defense in depth: even if auth.www somehow becomes externally
+	# routable (cloudflared ingress accidentally added, Cloudflare proxy
+	# flipped on, DNS misconfigured), reject anything whose source IP
+	# isn't on the home LAN subnet. The mint endpoint is only ever meant
+	# to be hit from inside the house. Update this CIDR if LAN changes.
+	@not_lan not remote_ip 192.168.1.0/24
+	respond @not_lan 404
+	reverse_proxy auth:8000
 }
 
 pihole.{$DOMAIN} {

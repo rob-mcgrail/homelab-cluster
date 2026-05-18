@@ -256,6 +256,23 @@ services:
       - ./scripts:/scripts:ro
     restart: unless-stopped
 
+  auth:
+    build: ./auth
+    container_name: auth
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    env_file:
+      - .api_keys
+    environment:
+      - DOMAIN=${DOMAIN}
+    # No host ports. Reached only on the docker network: Caddy hits
+    # auth:8000/verify via forward_auth, and reverse-proxies
+    # auth.www.{DOMAIN} → auth:8000/ for the cookie-mint endpoint.
+    restart: unless-stopped
+
   caddy:
     build: ./caddy
     container_name: caddy

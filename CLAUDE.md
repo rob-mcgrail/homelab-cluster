@@ -145,6 +145,38 @@ Three Reolink floodlight cams (`Front door`, `Deck`, `Shed`) integrated via the 
 
 See `homeassistant/NOTES.md` for full setup steps, entity IDs, and the Companion app config.
 
+## auth (LAN-bootstrapped cookie gate)
+
+Forward-auth gate for `www.{DOMAIN}` (the dashboard, and eventually anything else exposed via the Cloudflare tunnel). Bun service in `./auth/`, no host ports — reached only on the docker network.
+
+Design: physical LAN presence is the only way to mint a cookie. Once you have it, the cookie is good for `AUTH_COOKIE_LIFETIME_DAYS` (default 21) and travels with you on mobile data, foreign wifi, etc.
+
+**Flow:**
+1. Caddy's `www.{DOMAIN}` block has `forward_auth auth:8000 { uri /verify }`.
+2. `/verify` checks the `homelab_auth` cookie (HMAC-SHA256 of `<expiry_unix>` keyed by `AUTH_SECRET`, constant-time compared, expiry checked). On 2xx Caddy passes through to dashboard; on 3xx the redirect to `auth.www.{DOMAIN}` is returned to the browser.
+3. `auth.www.{DOMAIN}` (also served by Caddy → auth:8000) hits `GET /`, which mints a fresh cookie with `Domain=www.{DOMAIN}; Secure; HttpOnly; SameSite=Lax` and 302s back to `?next=` (validated to our own host) or `https://www.{DOMAIN}/`.
+4. `auth.www.{DOMAIN}` is reachable only from the LAN. The existing `*.{DOMAIN}` wildcard A record resolves it to `${LAN_IP}` (a private RFC1918 address) for any resolver — external clients can read the answer but can't route to it. When cloudflared is added later, its ingress rules won't list `auth.www`, so the tunnel can't proxy it either.
+
+Stateless: no DB, no Cloudflare callback. Rotating `AUTH_SECRET` in `.api_keys` invalidates every issued cookie.
+
+No DNS config needed — the existing wildcard does the work.
+
+**Testing the gate (after `docker compose up -d`):**
+
+```sh
+# Hit /verify via Caddy from the host — no cookie → 302 to auth.www
+source .env && source .api_keys
+curl -skI -H "Host: www.${DOMAIN}" https://localhost/    # expect 302, Location auth.www.{DOMAIN}
+
+# Hit auth.www / — should set the cookie and 302 to www
+curl -skI -H "Host: auth.www.${DOMAIN}" https://localhost/    # expect 302, Set-Cookie homelab_auth=...
+
+# End-to-end from a LAN browser at https://www.{DOMAIN}:
+#   - first visit: 302 → auth.www → 302 back with cookie → dashboard loads
+#   - subsequent visits within 21 days: dashboard loads directly
+# DevTools should show cookie Domain=www.{DOMAIN}, Expires ~21d out, HttpOnly, Secure
+```
+
 ## jellyfin-proxy
 
 Openresty sidecar that rewrites `PlaybackInfo` on the `jellyfin-force-transcode.{DOMAIN}` subdomain to force HEVC transcoding for clients whose decoders stutter on real HEVC (Android TV). See `openresty/README.md` for the why, architecture, and gotchas.
