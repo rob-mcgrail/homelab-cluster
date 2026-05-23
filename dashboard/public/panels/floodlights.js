@@ -6,8 +6,8 @@ const ALL_ID = 'light.all_floodlights';
 const LIGHTS = [
   { id: ALL_ID,                                       name: 'All',        all: true },
   { id: 'light.front_door_floodlight_cam_floodlight', name: 'Front door' },
-  { id: 'light.deck_floodlight_cam_floodlight',       name: 'Deck' },
   { id: 'light.shed_floodlight',                      name: 'Shed' },
+  { id: 'light.deck_floodlight_cam_floodlight',       name: 'Deck' },
 ];
 // Recording preferences — togglable settings that aren't lights but
 // share the same toggle endpoint (server dispatches by entity domain).
@@ -17,8 +17,8 @@ const SETTINGS = [
 ];
 const CAMS = [
   { slug: 'front_door', name: 'Front door' },
-  { slug: 'deck',       name: 'Deck' },
   { slug: 'shed',       name: 'Shed' },
+  { slug: 'deck',       name: 'Deck' },
 ];
 const HA_DASH_URL = 'https://ha.office-computer-online-worldwide.org/lovelace-floodlights/floodlights';
 

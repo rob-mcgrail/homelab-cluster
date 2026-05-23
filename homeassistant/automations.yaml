@@ -23,16 +23,16 @@
     the day. Re-introduce auto-presence once HA is externally
     reachable (Cloudflare Tunnel planned).
     Triggers:
-    - person, vehicle — all cams, all instant
+    - person — all cams, instant
+    - vehicle — front_door only (the only cam with line-of-sight to
+      the driveway). Deck + shed vehicle classifiers misfire on the
+      dog: a 14-day audit showed dk_vehicle fired 1122 times overnight
+      and was the first trigger on 574 of 580 overnight recordings.
+      Same untrusted-sensor exclusion as floodlights_on_when_either_cam_detects.
     - NOT animal — too many false positives from possums/cats at
       night clogging up the clip list
     - NOT motion — that channel is dominated by shadows/wind/etc and
       would record constantly
-    The deck-vehicle + shed-vehicle classifiers are known to misfire
-    on animals (see floodlights_on_when_either_cam_detects), but
-    that's fine here — if it fires, either an animal IS there
-    (acceptable spurious clip) or a real vehicle is there (worth a
-    clip). We don't filter.
   mode: single
   trigger:
     - platform: state
@@ -40,9 +40,7 @@
         - binary_sensor.front_door_floodlight_cam_person
         - binary_sensor.front_door_floodlight_cam_vehicle
         - binary_sensor.deck_floodlight_cam_person
-        - binary_sensor.deck_floodlight_cam_vehicle
         - binary_sensor.shed_person
-        - binary_sensor.shed_vehicle
       to: "on"
   condition:
     - condition: or
@@ -116,18 +114,33 @@
   alias: "Floodlights: turn on when any cam detects person/vehicle"
   description: >-
     Any Reolink cam sees a human or vehicle → all floodlights on.
-    Skipped during daylight and when the auto toggle is off. See
-    record_event_clips for trigger shape rationale (person instant,
-    front_door vehicle 1.5s sustained, deck + shed vehicle ignored as
-    misclassification).
+    Skipped during daylight and when the auto toggle is off.
+    Trigger shape:
+    - front_door person: instant (security-critical, want no delay at
+      the doorbell zone)
+    - deck + shed person: 500ms sustained. The dog gets briefly
+      misclassified as person on these cams — observed pulses were
+      ~0.2s before reverting to animal. A 500ms debounce filters those
+      without meaningfully delaying real humans (real person events
+      sustain for 3+ seconds).
+    - front_door vehicle: 1500ms sustained (reolink AI flickers
+      vehicle on/off as cars approach; sustain confirms real arrival).
+    - deck + shed vehicle: excluded entirely — both classifiers
+      misfire on animals (14-day overnight audit: dk_vehicle fired
+      1122 times). Same exclusion as record_event_clips.
   mode: single
   trigger:
     - platform: state
       entity_id:
         - binary_sensor.front_door_floodlight_cam_person
+      to: "on"
+    - platform: state
+      entity_id:
         - binary_sensor.deck_floodlight_cam_person
         - binary_sensor.shed_person
       to: "on"
+      for:
+        milliseconds: 500
     - platform: state
       entity_id:
         - binary_sensor.front_door_floodlight_cam_vehicle

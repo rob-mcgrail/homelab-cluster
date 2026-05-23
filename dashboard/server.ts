@@ -1134,10 +1134,15 @@ const server = Bun.serve({
       }
     }
 
-    // Serve static files
+    // Serve static files. Cache-Control: no-cache makes the browser
+    // revalidate on every request rather than heuristic-caching JS/CSS
+    // indefinitely — assets are unhashed and live-reload via the public/
+    // bind mount, so a missed edit beats a saved RTT here.
     let path = url.pathname === "/" ? "/index.html" : url.pathname;
     const file = Bun.file(`public${path}`);
-    if (await file.exists()) return new Response(file);
+    if (await file.exists()) {
+      return new Response(file, { headers: { "Cache-Control": "no-cache" } });
+    }
 
     return new Response("Not found", { status: 404 });
   },
