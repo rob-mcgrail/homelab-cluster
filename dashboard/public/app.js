@@ -43,16 +43,25 @@ setPanels(panels.length);
 const PAGES = panels.length;
 
 const viewport = document.getElementById('viewport');
-// Set the viewport width to exactly fit every panel. Each panel is
-// `width: 100vw`, so the flex container needs to be PAGES * 100vw wide
-// or the trailing panels overflow into undefined space and swipes
-// past them get stuck.
-viewport.style.width = `${PAGES * 100}vw`;
 const panelEls = panels.map(p => {
   const el = p.mount();
   viewport.appendChild(el);
   return el;
 });
+// Explicit container width — pixels, not vw — so we never rely on
+// max-content + flex-children-with-vw resolving to N*innerWidth.
+// Some browsers (mobile Chrome in particular) clamp `width: max-content`
+// on a flex container, leaving trailing flex items rendered at 0 width
+// or stacked outside the snap math's reach. Setting an explicit pixel
+// width on the viewport AND a pixel width on every panel guarantees
+// the layout matches what page-index-times-W expects.
+function applyViewportSize() {
+  const w = window.innerWidth;
+  viewport.style.width = `${PAGES * w}px`;
+  panelEls.forEach((el) => { el.style.width = `${w}px`; });
+}
+applyViewportSize();
+window.addEventListener('resize', () => { applyViewportSize(); setPos(-panelOffset(page), false); });
 
 const allDots = () => viewport.querySelectorAll('.dot');
 const W = () => window.innerWidth;
@@ -102,6 +111,17 @@ function updateDots() {
   allDots().forEach(d => d.classList.toggle('active', +d.dataset.p === page));
 }
 
+// Use the panel element's actual offsetLeft as the snap target rather
+// than `page * window.innerWidth`. Why: 100vw and innerWidth can
+// diverge on mobile (URL-bar dvh transitions, safe-area insets, etc),
+// so the page-index-times-W math can land between two panels even
+// when the layout itself is correct. offsetLeft is whatever the
+// browser actually rendered, so snapping to it always lines up.
+function panelOffset(idx) {
+  const el = panelEls[idx];
+  return el ? el.offsetLeft : idx * W();
+}
+
 function snapTo(p) {
   p = Math.max(0, Math.min(PAGES - 1, p));
   const prev = panels[page];
@@ -109,7 +129,7 @@ function snapTo(p) {
   // streams etc) so they don't hold connection slots in the background.
   if (prev && prev.onHide && p !== page) prev.onHide();
   page = p;
-  setPos(-p * W(), true);
+  setPos(-panelOffset(p), true);
   updateDots();
   updatePaddles();
   const panel = panels[p];
@@ -117,10 +137,29 @@ function snapTo(p) {
 }
 
 // Initial position + dots
-setPos(-page * W(), false);
+setPos(-panelOffset(page), false);
 updateDots();
 updatePaddles();
 if (panels[page] && panels[page].onShow) panels[page].onShow();
+
+// Prefetch every other panel's data in parallel right after the
+// visible panel's onShow has fired. Each non-visible panel.refresh()
+// starts its own fetch immediately; HTTP/2 multiplexes them all over
+// one connection, so total wall time is ~one CF round-trip regardless
+// of how many panels we have. When the user later swipes to a panel
+// it already has data — no "Loading…" flash and no extra round trip
+// at swipe time. Fire-and-forget; we don't block paint on this.
+//
+// The visible panel's onShow already kicked off ITS own refresh
+// above, so we skip it here. Panels without a refresh() (links is
+// static) are simply skipped.
+Promise.all(
+  panels.map((p, i) => {
+    if (i === page) return null;
+    if (!p || typeof p.refresh !== 'function') return null;
+    return p.refresh().catch(() => {});
+  })
+);
 
 // Re-snap when the hash changes — happens when the SW navigates a
 // running tab to /#<panel> after a notification tap.
@@ -174,6 +213,32 @@ document.addEventListener('touchstart', (e) => {
   } else {
     pullPanel = null;
   }
+}, { passive: true });
+
+// Defensive: iOS Safari (and occasionally Android Chrome) fires
+// touchcancel mid-swipe — multi-touch interruption, OS gesture
+// hijack, scroll handover, etc. Without a handler the touchend never
+// runs and the viewport's mid-drag transform sticks, leaving the user
+// "stuck halfway" between two panels with no obvious way back.
+// Snap to the nearest panel and clear state.
+document.addEventListener('touchcancel', () => {
+  if (gesture === 'pull' && pullPanel) {
+    pullPanel.style.transition = 'transform 0.25s ease';
+    pullPanel.style.transform = '';
+  }
+  // If a swipe was in progress, decide which side the viewport is
+  // closer to and snap there. Otherwise just re-snap to the current
+  // page to wipe any half-state transform.
+  if (gesture === 'swipe') {
+    const m = (viewport.style.transform || '').match(/-?\d+(?:\.\d+)?/);
+    const cur = m ? parseFloat(m[0]) : -page * W();
+    const target = Math.round(-cur / W());
+    snapTo(target);
+  } else {
+    setPos(-page * W(), true);
+  }
+  gesture = null;
+  pullPanel = null;
 }, { passive: true });
 
 document.addEventListener('touchmove', (e) => {
@@ -231,7 +296,7 @@ document.addEventListener('touchend', (e) => {
   pullPanel = null;
 }, { passive: true });
 
-window.addEventListener('resize', () => setPos(-page * W(), false));
+// (resize handler consolidated up at applyViewportSize)
 
 // ---- keyboard navigation (desktop) ----
 // ArrowLeft/ArrowRight navigate panels, unless the user is typing in a field.

@@ -4,7 +4,7 @@ import { esc, fmtAgo } from '../utils.js';
 
 
 
-let root, urlInput, btn, statusEl, listEl;
+let root, urlInput, btn, statusEl, listEl, refreshTimer = null;
 
 function dots() {
   return Array.from({ length: DOTS }, (_, i) => `<div class="dot" data-p="${i}"></div>`).join('');

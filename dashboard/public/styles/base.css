@@ -11,9 +11,12 @@ html, body {
 
 .viewport {
   display: flex;
-  /* width is set in JS to `${PAGES * 100}vw` so the flex container is
-     exactly wide enough to contain every panel. Don't hardcode the
-     count here — the panel list grows. */
+  /* max-content makes the flex container auto-grow to fit its flex
+     children. Each panel is 100vw, so the viewport ends up exactly
+     N * 100vw wide with no per-panel-count math anywhere. Previously
+     this was hardcoded to a stale value (700vw) and then JS-set,
+     both of which silently broke when the panel list grew. */
+  width: max-content;
   height: 100dvh;
 }
 .viewport.animating {
