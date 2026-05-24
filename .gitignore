@@ -50,6 +50,7 @@ movie-bot-data/reviews/*
 !movie-bot-data/reviews/.gitkeep
 movie-bot-data/completed-review-runs/*
 !movie-bot-data/completed-review-runs/.gitkeep
+movie-bot-data/.review-drafts/
 movie-bot-data/.reviews.lock
 
 # Python bytecode (e.g. tracker-watch syntax checks)
