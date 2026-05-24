@@ -1,24 +1,159 @@
 .panel-film-reviews { background: #0d0a07; }
 
-.owl {
-  font-size: 2.6rem; position: absolute; top: 22px;
-  animation: hoot 18s ease-in-out infinite;
-  filter: drop-shadow(0 0 12px rgba(220, 170, 90, 0.35));
+.lizard {
+  font-size: 2.4rem; position: absolute; top: 24px;
+  animation: skitter 14s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px rgba(220, 170, 90, 0.3));
 }
-@keyframes hoot {
-  0%   { left: 6%; transform: rotate(0deg); }
-  20%  { transform: rotate(-3deg); }
-  40%  { left: calc(100% - 4rem); transform: rotate(2deg); }
+/* Lizard moves in bursts — quick skitter then long pause, like the
+   real thing on a sun-warm rock. Flips horizontally at each end. */
+@keyframes skitter {
+  0%   { left: 4%;  transform: scaleX(1)  rotate(-2deg) translateY(0); }
+  6%   { left: 22%; transform: scaleX(1)  rotate(2deg)  translateY(-2px); }
+  10%  { left: 22%; transform: scaleX(1)  rotate(0deg)  translateY(0); }
+  40%  { left: 22%; transform: scaleX(1)  rotate(0deg)  translateY(0); }
+  48%  { left: calc(100% - 4rem); transform: scaleX(1) rotate(3deg) translateY(-1px); }
   50%  { left: calc(100% - 4rem); transform: scaleX(-1) rotate(0deg); }
-  70%  { transform: scaleX(-1) rotate(3deg); }
-  90%  { left: 6%; transform: scaleX(-1) rotate(-2deg); }
-  100% { left: 6%; transform: scaleX(1) rotate(0deg); }
+  85%  { left: calc(100% - 4rem); transform: scaleX(-1) rotate(0deg); }
+  93%  { left: 4%;  transform: scaleX(-1) rotate(-2deg) translateY(-2px); }
+  100% { left: 4%;  transform: scaleX(1)  rotate(-2deg) translateY(0); }
 }
 
 .section-title-sepia {
   font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
   color: #d4a96a; margin-bottom: 1rem;
   text-shadow: 0 0 10px rgba(212, 169, 106, 0.25);
+}
+
+.rv-header-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 1rem; gap: 0.6rem;
+}
+.rv-header-row .section-title-sepia { margin-bottom: 0; }
+.rv-commission-btn {
+  background: transparent;
+  border: 1px solid #54401e;
+  color: #d4a96a;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.rv-commission-btn:hover { background: rgba(212, 169, 106, 0.08); border-color: #7a5d2c; }
+.rv-commission-btn:active { background: rgba(212, 169, 106, 0.14); }
+
+.rv-pending {
+  background: #110d07;
+  border: 1px dashed #54401e;
+  opacity: 0.85;
+}
+.rv-pending-badge {
+  background: rgba(212, 169, 106, 0.15);
+  color: #d4a96a;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  margin-left: 0.3rem;
+  align-self: center;
+}
+.rv-pending .rv-head { cursor: default; }
+.rv-pending .rv-preview { color: #8a7148; font-style: normal; }
+
+/* Modal */
+.rv-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8, 5, 3, 0.85);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center; justify-content: center;
+  padding: 1rem;
+  z-index: 1000;
+}
+.rv-modal-overlay.rv-modal-open { display: flex; }
+.rv-modal {
+  background: #110d07;
+  border: 1px solid #54401e;
+  border-radius: 14px;
+  width: min(100%, 480px);
+  max-height: 90vh; overflow: auto;
+  padding: 1.2rem 1.2rem 1rem 1.2rem;
+}
+.rv-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.9rem;
+}
+.rv-modal-title {
+  font-size: 1.05rem; font-weight: 700; color: #f0d8a8;
+  letter-spacing: 0.02em;
+}
+.rv-modal-close {
+  background: transparent; border: 0; color: #8a7148;
+  font-size: 1.5rem; line-height: 1; cursor: pointer;
+  padding: 0 0.3rem;
+}
+.rv-modal-close:hover { color: #d4a96a; }
+
+.rv-form { display: flex; flex-direction: column; gap: 0.8rem; }
+.rv-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.rv-field-label {
+  font-size: 0.75rem; font-weight: 600; color: #b08a52;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.rv-field-hint {
+  text-transform: none; color: #6a5530; font-weight: 500; letter-spacing: 0;
+  font-size: 0.7rem; margin-left: 0.4rem;
+}
+.rv-input {
+  background: #1c170d;
+  border: 1px solid #2e2415;
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  color: #f0d8a8;
+  font-family: inherit;
+  font-size: 0.92rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.rv-input:focus { border-color: #d4a96a; }
+.rv-textarea {
+  font-family: Georgia, 'Times New Roman', serif;
+  line-height: 1.45;
+  resize: vertical; min-height: 90px;
+}
+.rv-form-actions {
+  display: flex; gap: 0.5rem; justify-content: flex-end;
+  margin-top: 0.4rem;
+}
+.rv-btn {
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid transparent;
+}
+.rv-btn-ghost {
+  background: transparent;
+  border-color: #2e2415;
+  color: #8a7148;
+}
+.rv-btn-ghost:hover { color: #d4a96a; border-color: #54401e; }
+.rv-btn-primary {
+  background: #d4a96a;
+  color: #15110a;
+}
+.rv-btn-primary:hover { background: #e4bb7c; }
+.rv-btn-primary:disabled { opacity: 0.6; cursor: wait; }
+.rv-form-status {
+  font-size: 0.8rem; color: #8a7148; min-height: 1.2rem;
 }
 
 .rv-empty {

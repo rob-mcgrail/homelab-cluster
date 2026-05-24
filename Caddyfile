@@ -40,14 +40,35 @@ ha.{$DOMAIN} {
 }
 
 www.{$DOMAIN} {
-	# Cookie gate. forward_auth calls auth:8000/verify; on 2xx the request
-	# proceeds to dashboard, on 3xx the redirect (to auth.www.{DOMAIN}) is
-	# passed straight back to the browser.
-	forward_auth auth:8000 {
-		uri /verify
-		copy_headers Cookie
+	# Static assets (CSS, JS, fonts, favicon, the service worker) bypass
+	# the cookie gate. They contain no secrets — the dashboard's data is
+	# behind the /api/* endpoints, which the catch-all `handle` below
+	# still gates. Without this bypass, a cold first load fans out ~20+
+	# render-blocking asset requests, each of which round-trips through
+	# auth:8000/verify, multiplying the time-to-first-paint by the size
+	# of that round trip.
+	@public path / /styles/* /panels/* /app.js /push.js /utils.js /config.js /sw.js /favicon.ico /favicon.png
+	handle @public {
+		reverse_proxy dashboard:8000
 	}
-	reverse_proxy dashboard:8000
+
+	# Everything else (the /api/* endpoints, POST endpoints, anything
+	# that actually serves data) gets the cookie gate. forward_auth
+	# calls auth:8000/verify; on 2xx the request proceeds, on 3xx the
+	# redirect (to auth.www.{DOMAIN}) is passed back to the browser.
+	#
+	# `/` is in the @public set above — the HTML shell has no secrets,
+	# only references to /app.js + /api/* (which DO stay gated). Putting
+	# `/` in the public bucket lets CF edge-cache the page response with
+	# stale-while-revalidate, removing one of the worst first-load
+	# bottlenecks on the CF orange-cloud path.
+	handle {
+		forward_auth auth:8000 {
+			uri /verify
+			copy_headers Cookie
+		}
+		reverse_proxy dashboard:8000
+	}
 }
 
 auth.www.{$DOMAIN} {

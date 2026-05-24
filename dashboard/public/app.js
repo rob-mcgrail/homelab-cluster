@@ -27,12 +27,12 @@ window.fetch = function(input, init = {}) {
   return p;
 };
 
-// Fetch runtime config before building the panel list so toggleable panels
-// (e.g. Pi-hole) can be included or skipped cleanly.
-let cfg = { piholePanel: 'off' };
-try {
-  cfg = await fetch('/api/config').then(r => r.json());
-} catch { /* use defaults */ }
+// Runtime config is inlined into the HTML by the server (see server.ts's
+// index.html mutator) so we don't have to await /api/config at module
+// top-level. That fetch was blocking the entire module — and therefore
+// initial paint — until it resolved. With the config sitting on window
+// already, panel mount runs synchronously.
+const cfg = (typeof window !== 'undefined' && window.__DASHBOARD_CONFIG__) || { piholePanel: 'off' };
 
 const basePanels = [filmReviewsPanel, doubleFeaturesPanel, recsPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, youtubePanel, linksPanel, dockerPanel];
 const panels = cfg.piholePanel && cfg.piholePanel !== 'off'
@@ -43,6 +43,11 @@ setPanels(panels.length);
 const PAGES = panels.length;
 
 const viewport = document.getElementById('viewport');
+// Set the viewport width to exactly fit every panel. Each panel is
+// `width: 100vw`, so the flex container needs to be PAGES * 100vw wide
+// or the trailing panels overflow into undefined space and swipes
+// past them get stuck.
+viewport.style.width = `${PAGES * 100}vw`;
 const panelEls = panels.map(p => {
   const el = p.mount();
   viewport.appendChild(el);

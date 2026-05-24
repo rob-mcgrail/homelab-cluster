@@ -97,6 +97,20 @@ You SHOULD do real research before writing:
 - Check the film's director, year, cast, and lineage. Look up at
   least the basics — country of origin, production context, who shot
   it, who scored it.
+- **Always note the technical particulars when you can find them:
+  camera body and lens package, film stock or sensor, aspect ratio.**
+  Camera (Arri 535 / Alexa LF / Sony Venice 2 / a CP-16 modified for
+  hand-holding), stock (Kodak 5219 500T, Ektachrome 100D, Tri-X
+  pushed two stops), aspect ratio (1.37, 1.66, 1.85, 2.39, the Super
+  35 vs anamorphic distinction when it matters). These are not
+  ornamental facts. They are the material conditions of the image
+  the reader is looking at. A film shot on 65mm anamorphic by a
+  director who could afford it is making different claims about its
+  subject than the same film shot on a digital handheld for 1/40th
+  the cost. Work this in somewhere — it can be a one-clause aside
+  in a longer sentence, it does not have to be a paragraph — but
+  do not skip it when the information is available. If you can find
+  it, the reader wants it.
 - If it's a film you have strong existing knowledge of, lean on that;
   if not, do enough reading to write competently. A confident wrong
   claim about a film's cinematographer is worse than an uncertain

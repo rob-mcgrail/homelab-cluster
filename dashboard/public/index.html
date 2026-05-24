@@ -4,23 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <title>Movie Bot</title>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles/base.css">
-  <link rel="stylesheet" href="/styles/history.css">
-  <link rel="stylesheet" href="/styles/main.css">
-  <link rel="stylesheet" href="/styles/torrents.css">
-  <link rel="stylesheet" href="/styles/status.css">
-  <link rel="stylesheet" href="/styles/pihole.css">
-  <link rel="stylesheet" href="/styles/recs.css">
-  <link rel="stylesheet" href="/styles/links.css">
-  <link rel="stylesheet" href="/styles/double-features.css">
-  <link rel="stylesheet" href="/styles/floodlights.css">
-  <link rel="stylesheet" href="/styles/youtube.css">
-  <link rel="stylesheet" href="/styles/docker.css">
-  <link rel="stylesheet" href="/styles/film-reviews.css">
+  <!-- One bundled CSS instead of 13 individual files. Server concatenates
+       public/styles/*.css on demand; saves ~12 round trips on cold load. -->
+  <link rel="stylesheet" href="/styles/bundle.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
 </head>
 <body>
   <div class="viewport" id="viewport"></div>

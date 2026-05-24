@@ -11,7 +11,9 @@ html, body {
 
 .viewport {
   display: flex;
-  width: 700vw;
+  /* width is set in JS to `${PAGES * 100}vw` so the flex container is
+     exactly wide enough to contain every panel. Don't hardcode the
+     count here — the panel list grows. */
   height: 100dvh;
 }
 .viewport.animating {

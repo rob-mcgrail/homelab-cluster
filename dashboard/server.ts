@@ -13,6 +13,8 @@ const THOUGHTS_FILE = `${DATA_DIR}/movie-thoughts.jsonl`;
 const DOUBLE_FEATURES_DIR = `${DATA_DIR}/double-features`;
 const DISMISSED_DOUBLE_FEATURES_DIR = `${DATA_DIR}/dismissed-double-features`;
 const REVIEWS_DIR = `${DATA_DIR}/reviews`;
+const COMMISSION_QUEUE_DIR = `${DATA_DIR}/.commission-queue`;
+const REVIEW_PENDING_DIR = `${DATA_DIR}/.review-pending`;
 const YT_GRAB_PENDING_DIR = `${DATA_DIR}/youtube-grabs/pending`;
 const YT_GRAB_COMPLETED_DIR = `${DATA_DIR}/youtube-grabs/completed`;
 const QB_URL = "http://qbittorrent:8080";
@@ -278,6 +280,31 @@ function formatEta(seconds: number): string {
   return `${m}m`;
 }
 
+// Edge-cache header for the bot-output / log endpoints (reviews,
+// double-features, recs, history, runs). `Vary: Cookie` keys the
+// cache by the homelab_auth cookie value — for a single-user
+// homelab that's one cache entry per endpoint, owned by the one
+// cookie. Unauthed requests (no cookie) hash differently, miss the
+// cache, and still hit Caddy's forward_auth gate. Combined with
+// s-maxage + SWR, returning visits to these panels serve from the
+// user's nearest CF PoP rather than round-tripping home.
+//
+// 1 min fresh + 10 min SWR: pending markers and new commissions
+// become visible within a minute under steady traffic.
+const PRIVATE_SLOW_CACHE = {
+  "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=600",
+  "Vary": "Cookie",
+};
+
+// Build version stamp set at container boot. Used to cache-bust every
+// asset URL in the served HTML — when this binary restarts (e.g. after
+// a deploy), every <script src> / <link href> in the index gets a new
+// ?v=… and the CF edge / browser treat them as fresh URLs, hitting
+// origin once for the new version and then caching aggressively again.
+// Without this, the long s-maxage on /app.js means a buggy version can
+// stay served from edge for ~24h with no way to force propagation.
+const BUILD_VERSION = `${Date.now().toString(36)}`;
+
 const server = Bun.serve({
   port: 8000,
   async fetch(req) {
@@ -321,7 +348,7 @@ const server = Bun.serve({
         } catch {}
 
         const all = [...pending, ...done].slice(0, 15);
-        return Response.json(all);
+        return Response.json(all, { headers: PRIVATE_SLOW_CACHE });
       } catch {
         return Response.json([]);
       }
@@ -340,7 +367,7 @@ const server = Bun.serve({
             content: await Bun.file(`${COMPLETED_TRIAGE_DIR}/${f}`).text(),
           }))
         );
-        return Response.json(runs);
+        return Response.json(runs, { headers: PRIVATE_SLOW_CACHE });
       } catch {
         return Response.json([]);
       }
@@ -922,7 +949,7 @@ const server = Bun.serve({
         }
         // Newest first by createdAt (string ISO sorts lexically)
         items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-        return Response.json(items);
+        return Response.json(items, { headers: PRIVATE_SLOW_CACHE });
       } catch {
         return Response.json([]);
       }
@@ -979,12 +1006,78 @@ const server = Bun.serve({
             scoreImpact: intScore("scoreImpact"),
             scoreImpactEmoji: fm.scoreImpactEmoji || "",
             body,
+            pending: false,
           });
         }
         items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-        return Response.json(items);
+
+        // Prepend pending items (queued + in-flight) so the user sees
+        // their commission immediately without waiting for the review
+        // to actually finish writing. Pending items have empty body
+        // and a `pending: true` flag for the UI to render differently.
+        const pending: any[] = [];
+        const readPending = async (dir: string) => {
+          try {
+            const fs = await readdir(dir);
+            for (const f of fs) {
+              if (!f.endsWith(".json")) continue;
+              try {
+                const j = JSON.parse(await Bun.file(`${dir}/${f}`).text());
+                pending.push({
+                  id: j.slug ? `${j.slug}-${j.runId}` : f.replace(/\.json$/, ""),
+                  title: j.title || "(commission)",
+                  year: j.year || "",
+                  createdAt: j.createdAt || null,
+                  blurb: j.take ? `Commissioned: ${j.take.slice(0, 200)}` : "",
+                  pending: true,
+                  body: "",
+                });
+              } catch { /* skip malformed */ }
+            }
+          } catch { /* dir missing */ }
+        };
+        await readPending(COMMISSION_QUEUE_DIR);
+        await readPending(REVIEW_PENDING_DIR);
+        pending.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+
+        return Response.json([...pending, ...items], { headers: PRIVATE_SLOW_CACHE });
       } catch {
         return Response.json([]);
+      }
+    }
+
+    // Commission a review. The dashboard container has no `claude`
+    // binary so we can't run the bot here — we drop a queue file and a
+    // host cron picks it up within the next minute (see
+    // movie-bot-reviews/process-commission-queue.sh).
+    if (req.method === "POST" && url.pathname === "/api/film-reviews/commission") {
+      try {
+        const body = await req.json();
+        const title = (body.title || "").toString().trim();
+        const year = (body.year || "").toString().trim();
+        const take = (body.take || "").toString().trim();
+        if (!title) return Response.json({ error: "title required" }, { status: 400 });
+        if (!take) return Response.json({ error: "take required" }, { status: 400 });
+        if (title.length > 200) return Response.json({ error: "title too long" }, { status: 400 });
+        if (year && !/^\d{4}$/.test(year)) {
+          return Response.json({ error: "year must be a 4-digit number or blank" }, { status: 400 });
+        }
+        if (take.length > 4000) {
+          return Response.json({ error: "take too long (max 4000 chars)" }, { status: 400 });
+        }
+        const ts = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+        const id = `${ts}-${Math.random().toString(36).slice(2, 8)}`;
+        await Bun.write(
+          `${COMMISSION_QUEUE_DIR}/${id}.json`,
+          JSON.stringify({
+            id, title, year, take,
+            createdAt: new Date().toISOString(),
+            requestedAt: Math.floor(Date.now() / 1000),
+          })
+        );
+        return Response.json({ ok: true, id }, { status: 202 });
+      } catch (e) {
+        return Response.json({ error: (e as Error).message || "bad request" }, { status: 400 });
       }
     }
 
@@ -1001,7 +1094,7 @@ const server = Bun.serve({
             content: await Bun.file(`${COMPLETED_RECS_DIR}/${f}`).text(),
           })),
         );
-        return Response.json(runs);
+        return Response.json(runs, { headers: PRIVATE_SLOW_CACHE });
       } catch {
         return Response.json([]);
       }
@@ -1036,7 +1129,7 @@ const server = Bun.serve({
         const all = Array.from(byId.values())
           .filter((r) => r.status !== "pending" || r.runId === latestRunId)
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        return Response.json(all);
+        return Response.json(all, { headers: PRIVATE_SLOW_CACHE });
       } catch {
         return Response.json([]);
       }
@@ -1247,14 +1340,102 @@ const server = Bun.serve({
       }
     }
 
-    // Serve static files. Cache-Control: no-cache makes the browser
-    // revalidate on every request rather than heuristic-caching JS/CSS
-    // indefinitely — assets are unhashed and live-reload via the public/
-    // bind mount, so a missed edit beats a saved RTT here.
+    // Static-asset cache header. Aggressive long-window caching for the
+    // CF edge — assets sit fresh on edge for 1 day, then continue
+    // serving stale-while-revalidate for 30 days. Returning users
+    // basically never round-trip to origin for JS/CSS. Browser still
+    // revalidates each load (max-age=0) so a browser refresh always
+    // gets the latest via a conditional GET against CF.
+    //
+    // Propagation: when you change code, edge caches it the first time
+    // a user hits the new origin. With SWR, a stale visitor triggers a
+    // background revalidate that updates the edge cache for the next
+    // visitor. For instant propagation, purge the CF zone manually.
+    const STATIC_CACHE_HEADER =
+      "public, max-age=0, s-maxage=86400, stale-while-revalidate=2592000";
+
+    // CSS bundle — concat all panel + base CSS into one response so the
+    // browser does ONE round-trip on first load instead of 13. base.css
+    // first (typography reset, fonts), then everything else.
+    if (req.method === "GET" && url.pathname === "/styles/bundle.css") {
+      try {
+        const files = (await readdir("public/styles"))
+          .filter((f) => f.endsWith(".css"))
+          .sort((a, b) => {
+            if (a === "base.css") return -1;
+            if (b === "base.css") return 1;
+            return a.localeCompare(b);
+          });
+        const parts: string[] = [];
+        for (const f of files) {
+          parts.push(`/* ---- ${f} ---- */\n${await Bun.file(`public/styles/${f}`).text()}\n`);
+        }
+        return new Response(parts.join("\n"), {
+          headers: {
+            "Content-Type": "text/css; charset=utf-8",
+            "Cache-Control": STATIC_CACHE_HEADER,
+          },
+        });
+      } catch {
+        return new Response("/* bundle error */", {
+          status: 500,
+          headers: { "Content-Type": "text/css; charset=utf-8" },
+        });
+      }
+    }
+
+    // Serve static files.
+    //
+    // index.html gets a small mutation: we inject the runtime config
+    // inline as a <script> so app.js doesn't have to await /api/config
+    // at module top-level. That fetch was blocking initial paint.
     let path = url.pathname === "/" ? "/index.html" : url.pathname;
     const file = Bun.file(`public${path}`);
     if (await file.exists()) {
-      return new Response(file, { headers: { "Cache-Control": "no-cache" } });
+      if (path === "/index.html") {
+        let html = await file.text();
+        const cfg = { piholePanel: PIHOLE_PANEL };
+        const inject = `<script>window.__DASHBOARD_CONFIG__ = ${JSON.stringify(cfg)};</script>`;
+        html = html.replace("</head>", `  ${inject}\n</head>`);
+        // Cache-bust every local asset URL referenced from the HTML.
+        // The build version changes on every server restart, so a buggy
+        // edge-cached /app.js can be force-invalidated by a rebuild
+        // even when the original URL is still in s-maxage.
+        html = html.replace(
+          /(\s(?:src|href)=")(\/[^"?]+\.(?:js|css|svg|png|ico))"/g,
+          `$1$2?v=${BUILD_VERSION}"`,
+        );
+        return new Response(html, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            // HTML uses a shorter s-maxage (1 hr) than the static
+            // bundle because the inlined config could change with env
+            // vars and you want that to propagate sooner. Long SWR
+            // window keeps the page snappy for returning visitors.
+            "Cache-Control":
+              "public, max-age=0, s-maxage=3600, stale-while-revalidate=604800",
+          },
+        });
+      }
+      // For ES module JS files, also rewrite the relative-import
+      // statements to include ?v=<build> so transitively-imported
+      // panels and helpers bust cache the same way the HTML entry
+      // point does. Browser sees a new URL for every imported module
+      // when the server restarts, so even though app.js?v=X is fresh,
+      // ./panels/foo.js?v=X is fresh too.
+      if (path.endsWith(".js")) {
+        const text = (await file.text()).replace(
+          /(\bfrom\s+['"])(\.[^'"?]+\.js)(['"])/g,
+          `$1$2?v=${BUILD_VERSION}$3`,
+        );
+        return new Response(text, {
+          headers: {
+            "Content-Type": "text/javascript; charset=utf-8",
+            "Cache-Control": STATIC_CACHE_HEADER,
+          },
+        });
+      }
+      return new Response(file, { headers: { "Cache-Control": STATIC_CACHE_HEADER } });
     }
 
     return new Response("Not found", { status: 404 });

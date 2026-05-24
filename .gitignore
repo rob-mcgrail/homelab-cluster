@@ -52,7 +52,9 @@ movie-bot-data/completed-review-runs/*
 !movie-bot-data/completed-review-runs/.gitkeep
 movie-bot-data/.review-drafts/
 movie-bot-data/.review-pending/
+movie-bot-data/.commission-queue/
 movie-bot-data/.reviews.lock
+movie-bot-data/.commission-processor.lock
 
 # Python bytecode (e.g. tracker-watch syntax checks)
 __pycache__/
