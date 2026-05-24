@@ -4,7 +4,7 @@ import { esc, fmtAgo } from '../utils.js';
 
 
 
-let root, listEl, activeFilter = 'downloading', allTorrents = [];
+let root, listEl, activeFilter = 'downloading', allTorrents = [], userPickedFilter = false;
 
 function dots() {
   return Array.from({ length: DOTS }, (_, i) => `<div class="dot" data-p="${i}"></div>`).join('');
@@ -68,6 +68,17 @@ async function refresh() {
   try {
     const res = await fetch('/api/torrents');
     allTorrents = await res.json();
+    // If the user hasn't explicitly chosen a filter, fall back to seeding
+    // when there's nothing downloading. Avoids a stale "Downloading: none"
+    // empty state when the only activity is seeds.
+    if (!userPickedFilter && activeFilter === 'downloading'
+        && !allTorrents.some(t => t.category === 'downloading')
+        && allTorrents.some(t => t.category === 'seeding')) {
+      activeFilter = 'seeding';
+      root.querySelectorAll('.torrent-filters .filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.f === 'seeding');
+      });
+    }
     render();
   } catch {
     allTorrents = [];
@@ -98,6 +109,7 @@ function mount() {
       root.querySelectorAll('.torrent-filters .filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       activeFilter = btn.dataset.f;
+      userPickedFilter = true;
       render();
     });
   });

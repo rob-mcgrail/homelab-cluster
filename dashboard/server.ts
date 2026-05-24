@@ -430,6 +430,69 @@ const server = Bun.serve({
       }
     }
 
+    if (req.method === "GET" && url.pathname === "/api/docker-stats") {
+      // Talks to the Docker engine over /var/run/docker.sock (mounted RO
+      // in compose). Lists every container then fetches one-shot stats
+      // for the running ones in parallel — Docker's stream=false response
+      // still includes both cpu_stats and precpu_stats, so we get CPU%
+      // from a single call (~1s server-side wait per container).
+      try {
+        const dockerGet = async (path: string) => {
+          const r = await fetch(`http://docker${path}`, { unix: "/var/run/docker.sock" } as any);
+          if (!r.ok) throw new Error(`docker ${path} -> ${r.status}`);
+          return r.json() as Promise<any>;
+        };
+        const list = await dockerGet("/containers/json?all=true");
+        const out = await Promise.all(list.map(async (c: any) => {
+          const id = c.Id;
+          const name = (c.Names?.[0] || "").replace(/^\//, "") || id.slice(0, 12);
+          const base = {
+            name,
+            state: c.State as string,
+            status: c.Status as string,
+            image: c.Image as string,
+            cpuPct: null as number | null,
+            memUsed: 0,
+            memTotal: 0,
+            memPct: null as number | null,
+          };
+          if (c.State !== "running") return base;
+          try {
+            const s = await dockerGet(`/containers/${id}/stats?stream=false`);
+            const cpuDelta = s.cpu_stats.cpu_usage.total_usage - (s.precpu_stats.cpu_usage?.total_usage || 0);
+            const sysDelta = s.cpu_stats.system_cpu_usage - (s.precpu_stats.system_cpu_usage || 0);
+            const cpus = s.cpu_stats.online_cpus || s.cpu_stats.cpu_usage.percpu_usage?.length || 1;
+            const cpuPct = sysDelta > 0 && cpuDelta > 0 ? (cpuDelta / sysDelta) * cpus * 100 : 0;
+            // cgroups v2 working set = usage - inactive_file (cgroups v1 used .cache).
+            const usage = s.memory_stats.usage || 0;
+            const inactive = s.memory_stats.stats?.inactive_file || s.memory_stats.stats?.cache || 0;
+            const memUsed = Math.max(0, usage - inactive);
+            const memTotal = s.memory_stats.limit || 0;
+            const memPct = memTotal > 0 ? (memUsed / memTotal) * 100 : 0;
+            return {
+              ...base,
+              cpuPct: Math.round(cpuPct * 10) / 10,
+              memUsed,
+              memTotal,
+              memPct: Math.round(memPct * 10) / 10,
+            };
+          } catch {
+            return base;
+          }
+        }));
+        // Running containers first, sorted by CPU desc; non-running after, alpha.
+        out.sort((a, b) => {
+          if (a.state === "running" && b.state !== "running") return -1;
+          if (a.state !== "running" && b.state === "running") return 1;
+          if (a.state === "running") return (b.cpuPct ?? 0) - (a.cpuPct ?? 0);
+          return a.name.localeCompare(b.name);
+        });
+        return Response.json(out);
+      } catch (e: any) {
+        return Response.json({ error: e.message || "docker socket unavailable" }, { status: 500 });
+      }
+    }
+
     if (req.method === "GET" && url.pathname === "/api/jellyfin-sessions") {
       try {
         const res = await fetch(`${JELLYFIN_URL}/Sessions`, {

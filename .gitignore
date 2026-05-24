@@ -41,6 +41,10 @@ movie-bot-data/youtube-grabs/pending/*
 movie-bot-data/youtube-grabs/completed/*
 !movie-bot-data/youtube-grabs/completed/.gitkeep
 
+# Web Push subscription records — contain device endpoint + auth secret;
+# runtime state written by the dashboard, never source-of-truth.
+movie-bot-data/push-subscriptions.json
+
 # Python bytecode (e.g. tracker-watch syntax checks)
 __pycache__/
 *.pyc

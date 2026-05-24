@@ -1,0 +1,70 @@
+.panel-docker { background: #04090e; }
+
+.whale {
+  font-size: 3rem; position: absolute; top: 20px;
+  animation: swim 9s ease-in-out infinite;
+  filter: drop-shadow(0 0 14px rgba(45, 200, 255, 0.45));
+}
+@keyframes swim {
+  0%   { left: 5%; transform: translateY(0) scaleX(1); }
+  48%  { left: calc(100% - 4rem); transform: translateY(-6px) scaleX(1); }
+  50%  { left: calc(100% - 4rem); transform: translateY(-6px) scaleX(-1); }
+  98%  { left: 5%; transform: translateY(0) scaleX(-1); }
+  100% { left: 5%; transform: translateY(0) scaleX(1); }
+}
+
+.section-title-cyan {
+  font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
+  color: #2dd4ff; margin-bottom: 1rem;
+  text-shadow: 0 0 10px rgba(45, 200, 255, 0.35);
+}
+
+.docker-empty { color: #2a3a4a; text-align: center; margin-top: 3rem; font-size: 0.9rem; }
+
+.docker-item {
+  background: #06121a; border: 1px solid #0d2436; border-radius: 14px;
+  padding: 0.85rem 1rem; margin-bottom: 0.6rem;
+}
+.docker-item-stopped { opacity: 0.55; }
+
+.docker-head {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.docker-name {
+  flex: 1;
+  font-size: 0.9rem; font-weight: 600; color: #2dd4ff;
+  line-height: 1.3;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  word-break: break-all;
+}
+
+.docker-metrics {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+}
+.docker-metric { min-width: 0; }
+.docker-metric-label {
+  font-size: 0.65rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #4a6478; margin-bottom: 0.2rem;
+}
+.docker-metric-value {
+  font-size: 0.85rem; font-weight: 600; color: #c8e8f4;
+  font-variant-numeric: tabular-nums;
+}
+.docker-bar {
+  height: 4px; border-radius: 2px; background: #0d2436;
+  margin-top: 0.4rem; overflow: hidden;
+}
+.docker-bar-fill {
+  height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, #0e7490, #2dd4ff);
+  box-shadow: 0 0 6px rgba(45, 200, 255, 0.4);
+  transition: width 0.5s ease;
+}
+.docker-bar-fill.warn { background: linear-gradient(90deg, #d97706, #fbbf24); box-shadow: 0 0 6px rgba(251, 191, 36, 0.35); }
+.docker-bar-fill.crit { background: linear-gradient(90deg, #b91c1c, #f87171); box-shadow: 0 0 6px rgba(248, 113, 113, 0.4); }
+
+.badge-running     { background: rgba(34, 197, 94, 0.15);  color: #4ade80; }
+.badge-exited      { background: rgba(120, 120, 120, 0.15); color: #888;    }
+.badge-paused      { background: rgba(168, 85, 247, 0.12); color: #c084fc; }
+.badge-restarting  { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }

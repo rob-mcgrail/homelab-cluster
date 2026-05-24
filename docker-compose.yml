@@ -254,6 +254,12 @@ services:
       # old version until restart).
       - ${DATA_ROOT}/media/kids/youtube:/youtube
       - ./scripts:/scripts:ro
+      # Read-only access to the Docker socket so the /api/docker-stats
+      # endpoint can list containers + pull CPU/mem stats for the panel.
+      # :ro is file-permission only — anyone who can talk to the socket
+      # has Docker root equivalence. Acceptable because the dashboard is
+      # behind the LAN-only auth gate; do not expose without it.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
   auth:
