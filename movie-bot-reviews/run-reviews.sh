@@ -2,9 +2,14 @@
 # Cron job: nightly deep-lore film-criticism review of one unseen Jellyfin film.
 #
 # The film is rolled by THIS script (not the bot) so that selection is a true
-# uniform random draw across the unseen, un-reviewed catalogue rather than
-# whatever the model happens to gravitate toward. The bot is then handed the
-# chosen film and writes the review against it.
+# uniform random draw across the unseen catalogue rather than whatever the
+# model happens to gravitate toward. The bot is then handed the chosen film
+# and writes the review against it.
+#
+# Re-picks are allowed by design: the RNG can land on the same film any number
+# of times across nights. Each review is written from scratch with no
+# awareness of prior reviews of the same film — the bot doesn't know they
+# exist and shouldn't.
 #
 # Add to crontab: 0 4 * * * /path/to/homelab-cluster/movie-bot-reviews/run-reviews.sh
 
@@ -51,31 +56,19 @@ if [ -z "$USER_ID" ] || [ -z "$LIB_ID" ]; then
     exit 1
 fi
 
-# Set of Jellyfin IDs we've already reviewed — extracted from frontmatter
-already_reviewed_file=$(mktemp)
-trap 'rm -f "$LOCKFILE" "$already_reviewed_file"' EXIT
-grep -h '^jellyfinId:' "$REVIEWS_DIR"/*.md 2>/dev/null \
-    | awk '{print $2}' \
-    | sort -u > "$already_reviewed_file"
-
 PICK=$(curl -fsS -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" \
     "$JELLYFIN_URL/Users/$USER_ID/Items?ParentId=$LIB_ID&IncludeItemTypes=Movie&Recursive=true&Fields=UserData,ProductionYear&Limit=5000" \
     | python3 -c "
 import json, sys, random
-seen = set(l.strip() for l in open('$already_reviewed_file') if l.strip())
 items = json.load(sys.stdin).get('Items', [])
-candidates = [
-    i for i in items
-    if not i.get('UserData', {}).get('Played', False)
-    and i['Id'] not in seen
-]
+candidates = [i for i in items if not i.get('UserData', {}).get('Played', False)]
 if not candidates:
     print('NONE'); sys.exit(0)
 p = random.choice(candidates)
 print(f\"{p['Id']}\t{p.get('Name','')}\t{p.get('ProductionYear','')}\")")
 
 if [ "$PICK" = "NONE" ] || [ -z "$PICK" ]; then
-    log "no unseen, un-reviewed films available — no-op"
+    log "no unseen films available — no-op"
     exit 0
 fi
 
