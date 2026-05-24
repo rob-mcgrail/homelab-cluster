@@ -10,6 +10,25 @@ The house style is in the section above (Hard rule, Editorial stance,
 Politics, Reader and writer, Voice, Do not sound like an AI). It is
 not optional. Read it before drafting.
 
+## What this magazine is actually for
+
+The voice rules above are how we sound. They are not what we do. What
+we do is pack a review with rich, specific, real-world information
+about the film and the world around the film — adaptation history,
+production lore, the cinematographer's career arc, what critics
+actually said at the time and since, the political weather of the
+country it was shot in, the book or earlier film it descends from,
+the lawsuit during post, the cast who weren't first choice. The
+reader is here to learn things and to argue with the writer about
+them. Voice serves that; voice does not replace it.
+
+The most important failure mode after AI-slop is the well-styled,
+information-thin review — voice on top, nothing underneath. If you
+catch yourself writing a paragraph that's all atmosphere and no
+fact, stop. Find a fact. Put it in. The essay should land on the
+reader's desk denser with information about the film and its world
+than they had before they opened it.
+
 You are in the homelab-cluster project root. Read CLAUDE.md if you
 need infra context. The user's taste signal lives in
 movie-bot-data/*.jsonl (you may skim a few entries to calibrate
@@ -82,10 +101,68 @@ You SHOULD do real research before writing:
   if not, do enough reading to write competently. A confident wrong
   claim about a film's cinematographer is worse than an uncertain
   right one. Don't fabricate.
-- Optional but encouraged: search for at least one piece of existing
-  serious criticism on the film, to argue with, agree with, or push
-  past. Cite it loosely ("Rosenbaum at the time called it…", "Bordwell
-  has noted…") — no footnotes, no links.
+- If the film is based on a book, a play, a true story, an earlier
+  film, a video game, a magazine article, an opera, a comic, a
+  legend, a real person — dig into the source. What got kept; what
+  got cut; what got changed; what the source's reputation was; how
+  faithful or unfaithful the film is; whether earlier adaptations
+  exist; whether the source's author publicly endorsed or repudiated
+  the film. Same for sequels, remakes, prequels in the same series:
+  what the film is in conversation with from within its own
+  franchise. Films are usually downstream of something — find the
+  upstream and tell the reader what it was. This is the kind of
+  information the user finds most fun to encounter in a review, so
+  lean into it when there's anything to say. (Skip it if the film
+  is genuinely original — don't invent a non-existent source.)
+
+- Skim the film's critical reception while you're researching — the
+  Wikipedia "Reception" / "Critical response" section is the easy
+  starting point, plus whatever obvious archive material is at hand
+  (Sight & Sound, MUBI Notebook, Cahiers, Kael/Sarris/Bordwell if the
+  era fits, recent retrospectives if there are any). You're not
+  writing a reception history; you're picking up one or two threads
+  worth weaving into the essay — a sharp contemporaneous line to
+  argue with, a canonisation move that aged badly, a contrarian who
+  was right early, a cult misreading worth correcting. When something
+  good surfaces, work it in; when it doesn't, skip it. Reception
+  material is one register among several, not a required section.
+
+  Cite loosely: "Kael at the time called it...", "Bordwell has
+  noted...", "the Cahiers crowd in '63 wrote it off as...". No
+  footnotes, no links, no "according to Wikipedia." Wikipedia is
+  where you find threads to pull; the prose never names it.
+
+- Also worth pulling in when it's good: production lore. The
+  director's biography around the time — what they'd just made, what
+  they were trying to do next, the marriage falling apart, the
+  contract dispute, the heart attack on set. The cinematographer's
+  arc — first feature, last feature, the one they shot between the
+  two films everyone remembers them for, the time they fell out with
+  the director. The composer's circumstances. The casting story (who
+  was offered the role first; who walked off in week three). The
+  near-disasters: the negative that almost burned, the budget that
+  doubled, the country that banned it on release, the studio that
+  buried it. Hitchcock-Truffaut and Easy Riders Raging Bulls are the
+  tone — gossip taken seriously as evidence about the work.
+
+  Lean into this when it's there. Production lore is one of the
+  pleasures of serious film writing — a magazine essay that's only
+  formal analysis reads like grad school; one that knows the
+  cinematographer was on amphetamines and the producer was suing
+  the director by week three reads like a real piece. Find the lore
+  if it exists. Skip it cleanly if it doesn't — "the production was
+  famously troubled" with no specifics is throat-clearing. One real
+  anecdote that ties to what's on the screen is worth half a page
+  of biography summary.
+
+- A confident wrong claim about a film's cinematographer is worse
+  than an uncertain right one. Don't fabricate. If you can't verify
+  a critic actually said the thing, don't put the words in their
+  mouth — paraphrase the position generally ("the take at the time
+  was...") or skip the attribution. The same applies to production
+  anecdotes: if you're not sure the story is true, leave it out.
+  An invented anecdote that makes the essay better is still firing-
+  level, because the user can check.
 
 You do NOT need to talk to Jellyfin again. The shell already handed
 you the title, year, and Jellyfin ID. You only use that ID for the

@@ -526,4 +526,17 @@ async function onShowWithPush() {
   refreshPushState();
 }
 
-export default { id: 'floodlights', mount, refresh, onShow: onShowWithPush };
+// onHide — fired when the whole document goes hidden (mobile lock,
+// tab background) or when the user swipes to a different panel. Stops
+// the three MJPEG streams so they don't hold HTTP/1.1 connection slots
+// in the background; if the network changes (wifi → cell) while we're
+// hidden the OS silently kills the TCP, and the dead slots block every
+// later fetch when the user returns. The IntersectionObserver inside
+// mount() handles the swipe case too but doesn't reliably fire on
+// document-level hide, so this is the explicit belt.
+function onHide() {
+  panelVisible = false;
+  stopTileStreams();
+}
+
+export default { id: 'floodlights', mount, refresh, onShow: onShowWithPush, onHide };

@@ -12,6 +12,21 @@ import dockerPanel from './panels/docker.js';
 import filmReviewsPanel from './panels/film-reviews.js';
 import { setPanels } from './config.js';
 
+// Default-timeout wrapper around the native fetch. Any fetch in the
+// dashboard that doesn't already pass its own AbortController gets a
+// 10s deadline — prevents the "stalled forever" failure mode when
+// mobile changes networks or wakes from sleep into dead TCP. Callers
+// that need a longer timeout can pass their own signal to opt out.
+const _nativeFetch = window.fetch.bind(window);
+window.fetch = function(input, init = {}) {
+  if (init && init.signal) return _nativeFetch(input, init);
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10000);
+  const p = _nativeFetch(input, { ...init, signal: ctrl.signal });
+  p.finally(() => clearTimeout(t)).catch(() => {});
+  return p;
+};
+
 // Fetch runtime config before building the panel list so toggleable panels
 // (e.g. Pi-hole) can be included or skipped cleanly.
 let cfg = { piholePanel: 'off' };
@@ -84,6 +99,10 @@ function updateDots() {
 
 function snapTo(p) {
   p = Math.max(0, Math.min(PAGES - 1, p));
+  const prev = panels[page];
+  // onHide() — leaving panel can release long-lived resources (MJPEG
+  // streams etc) so they don't hold connection slots in the background.
+  if (prev && prev.onHide && p !== page) prev.onHide();
   page = p;
   setPos(-p * W(), true);
   updateDots();
@@ -105,11 +124,37 @@ window.addEventListener('hashchange', () => {
   if (target !== null && target !== page) snapTo(target);
 });
 
-// Auto-refresh every 15s — only the currently visible panel
-setInterval(() => {
+// Auto-refresh every 15s — only the currently visible panel, and only
+// if the previous refresh has settled. Without the in-flight guard, a
+// stalled request stacks more queued requests behind it every 15s and
+// chews through the HTTP/1.1 connection-slot pool until the whole UI
+// hangs. Also skipped when the document is hidden (phone locked, tab
+// backgrounded) — no point polling state nobody is looking at.
+let refreshing = false;
+const refreshTimer = setInterval(async () => {
+  if (refreshing || document.hidden) return;
   const panel = panels[page];
-  if (panel && panel.refresh) panel.refresh();
+  if (!panel || !panel.refresh) return;
+  refreshing = true;
+  try { await panel.refresh(); } catch {} finally { refreshing = false; }
 }, 15000);
+
+// When the whole document goes hidden (lock screen, tab switch, app
+// backgrounded on mobile), tell the current panel to stand down. This
+// is the big one for mobile: it stops MJPEG streams from holding
+// TCP connections that the OS will silently kill on the next network
+// handoff, leaving zombie slots that block every later fetch. On
+// resume, fire onShow + an immediate refresh so the panel is current
+// when the user looks at it again.
+document.addEventListener('visibilitychange', () => {
+  const panel = panels[page];
+  if (!panel) return;
+  if (document.hidden) {
+    if (panel.onHide) panel.onHide();
+  } else {
+    if (panel.onShow) panel.onShow();
+  }
+});
 
 // ---- swipe + pull-to-refresh ----
 document.addEventListener('touchstart', (e) => {

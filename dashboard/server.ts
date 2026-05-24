@@ -971,6 +971,7 @@ const server = Bun.serve({
             jellyfinId: fm.jellyfinId || null,
             createdAt: fm.createdAt || null,
             runId: fm.runId || "",
+            blurb: fm.blurb || "",
             scoreExecution: intScore("scoreExecution"),
             scoreExecutionEmoji: fm.scoreExecutionEmoji || "",
             scoreStory: intScore("scoreStory"),

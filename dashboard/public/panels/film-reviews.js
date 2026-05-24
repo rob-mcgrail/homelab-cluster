@@ -22,6 +22,12 @@ function firstSentence(body) {
   return m ? m[0] : trimmed.slice(0, 220);
 }
 
+// Use the bot-written blurb when present; fall back to first sentence
+// for older reviews predating the blurb field.
+function previewFor(r) {
+  return (r.blurb && r.blurb.trim()) || firstSentence(r.body);
+}
+
 function scoreRow(r) {
   const cell = (label, n, emoji) => {
     if (n == null) return '';
@@ -56,7 +62,7 @@ function render() {
         <div class="rv-meta">${fmtDate(r.createdAt)}</div>
         ${scoreRow(r)}
       </div>`;
-    const closed = `<div class="rv-preview">${esc(firstSentence(r.body))}…</div>`;
+    const closed = `<div class="rv-preview">${esc(previewFor(r))}</div>`;
     const opened = `<div class="rv-body">${renderTriageMd(r.body)}</div>`;
     return `
       <article class="rv-item ${open ? 'rv-open' : ''}" data-id="${esc(r.id)}">
