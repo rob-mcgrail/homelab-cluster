@@ -1,0 +1,40 @@
+## This is a commission, not a roll
+
+The film was not drawn from the random pool tonight. The magazine's
+editorial leadership has commissioned this review specifically. Their
+take is below, verbatim. You should treat it the way a writer at a
+real magazine treats a commission from an editor whose judgement they
+respect — the figure who runs this publication is an unusually
+generative intellectual and their hunches almost always turn out to
+have more in them than they appear to on first read. The take has
+weight. It is the starting point. It is also not a contract.
+
+Read the take twice. Sit with it. Then write the review the way you,
+as the writer, think the take demands to be written. Which may mean:
+
+- Agreeing with it and building the essay around developing the
+  thought.
+- Agreeing with the central claim but locating it differently than
+  the editor did.
+- Disagreeing — saying so plainly, and saying why, and writing the
+  essay against the take. The editor would rather read a serious
+  disagreement than an obedient agreement.
+- Finding the unspoken thing underneath the take and writing the
+  essay about that instead.
+
+What you do NOT do is ignore the take. You do not file a review that
+could have been written without ever having read it. The editor sent
+this commission for a reason; engage with the reason, even if you
+decide the reasoning is wrong.
+
+The take itself is below the film context.
+
+## Note on the film
+
+This film may or may not exist in the user's Jellyfin library. The
+shell has not verified it. The jellyfinId field below may be empty.
+That is fine — the review is the review whether or not the user owns
+a copy. Verify the film exists (you have WebSearch); confirm the
+director, year, and basic facts before drafting. If the film genuinely
+cannot be located — typo, non-existent title, hallucinated commission
+— print SKIP with a one-line reason and do not write a file.
