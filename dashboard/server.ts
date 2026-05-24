@@ -12,6 +12,7 @@ const RECS_FILE = `${DATA_DIR}/recommendations.jsonl`;
 const THOUGHTS_FILE = `${DATA_DIR}/movie-thoughts.jsonl`;
 const DOUBLE_FEATURES_DIR = `${DATA_DIR}/double-features`;
 const DISMISSED_DOUBLE_FEATURES_DIR = `${DATA_DIR}/dismissed-double-features`;
+const REVIEWS_DIR = `${DATA_DIR}/reviews`;
 const YT_GRAB_PENDING_DIR = `${DATA_DIR}/youtube-grabs/pending`;
 const YT_GRAB_COMPLETED_DIR = `${DATA_DIR}/youtube-grabs/completed`;
 const QB_URL = "http://qbittorrent:8080";
@@ -116,6 +117,17 @@ async function appendJsonl(path: string, obj: any) {
   const file = Bun.file(path);
   const existing = (await file.exists()) ? await file.text() : "";
   await Bun.write(path, existing + line);
+}
+
+function parseFrontmatter(content: string): { fm: Record<string, string>; body: string } | null {
+  const m = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n+([\s\S]*)$/);
+  if (!m) return null;
+  const fm: Record<string, string> = {};
+  for (const line of m[1].split("\n")) {
+    const kv = line.match(/^(\w+):\s*(.*)$/);
+    if (kv) fm[kv[1]] = kv[2].trim();
+  }
+  return { fm, body: m[2].trim() };
 }
 
 function parseDoubleFeature(content: string, filename: string) {
@@ -935,6 +947,43 @@ const server = Bun.serve({
         } catch {
           return new Response("dismiss failed", { status: 500 });
         }
+      }
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/film-reviews") {
+      try {
+        const files = await readdir(REVIEWS_DIR);
+        const items: any[] = [];
+        for (const f of files) {
+          if (!f.endsWith(".md")) continue;
+          const content = await Bun.file(`${REVIEWS_DIR}/${f}`).text();
+          const parsed = parseFrontmatter(content);
+          if (!parsed) continue;
+          const { fm, body } = parsed;
+          const intScore = (k: string) => {
+            const v = parseInt(fm[k] || "", 10);
+            return Number.isFinite(v) ? v : null;
+          };
+          items.push({
+            id: fm.id || f.replace(/\.md$/, ""),
+            title: fm.title || "",
+            year: fm.year || "",
+            jellyfinId: fm.jellyfinId || null,
+            createdAt: fm.createdAt || null,
+            runId: fm.runId || "",
+            scoreExecution: intScore("scoreExecution"),
+            scoreExecutionEmoji: fm.scoreExecutionEmoji || "",
+            scoreStory: intScore("scoreStory"),
+            scoreStoryEmoji: fm.scoreStoryEmoji || "",
+            scoreImpact: intScore("scoreImpact"),
+            scoreImpactEmoji: fm.scoreImpactEmoji || "",
+            body,
+          });
+        }
+        items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+        return Response.json(items);
+      } catch {
+        return Response.json([]);
       }
     }
 

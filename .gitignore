@@ -45,6 +45,13 @@ movie-bot-data/youtube-grabs/completed/*
 # runtime state written by the dashboard, never source-of-truth.
 movie-bot-data/push-subscriptions.json
 
+# Nightly film reviews — bot output, regenerated continually.
+movie-bot-data/reviews/*
+!movie-bot-data/reviews/.gitkeep
+movie-bot-data/completed-review-runs/*
+!movie-bot-data/completed-review-runs/.gitkeep
+movie-bot-data/.reviews.lock
+
 # Python bytecode (e.g. tracker-watch syntax checks)
 __pycache__/
 *.pyc

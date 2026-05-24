@@ -1,0 +1,111 @@
+.panel-film-reviews { background: #0d0a07; }
+
+.owl {
+  font-size: 2.6rem; position: absolute; top: 22px;
+  animation: hoot 18s ease-in-out infinite;
+  filter: drop-shadow(0 0 12px rgba(220, 170, 90, 0.35));
+}
+@keyframes hoot {
+  0%   { left: 6%; transform: rotate(0deg); }
+  20%  { transform: rotate(-3deg); }
+  40%  { left: calc(100% - 4rem); transform: rotate(2deg); }
+  50%  { left: calc(100% - 4rem); transform: scaleX(-1) rotate(0deg); }
+  70%  { transform: scaleX(-1) rotate(3deg); }
+  90%  { left: 6%; transform: scaleX(-1) rotate(-2deg); }
+  100% { left: 6%; transform: scaleX(1) rotate(0deg); }
+}
+
+.section-title-sepia {
+  font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
+  color: #d4a96a; margin-bottom: 1rem;
+  text-shadow: 0 0 10px rgba(212, 169, 106, 0.25);
+}
+
+.rv-empty {
+  color: #6a5a3a; text-align: center; margin-top: 4rem; font-size: 0.95rem;
+  font-family: 'Space Grotesk', serif;
+}
+.rv-empty-sub { color: #4a3e28; font-size: 0.8rem; }
+
+.rv-item {
+  background: #15110a;
+  border: 1px solid #2a2014;
+  border-radius: 12px;
+  margin-bottom: 0.7rem;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+.rv-item.rv-open { border-color: #54401e; }
+
+.rv-head {
+  padding: 1rem;
+  cursor: pointer;
+  user-select: none;
+}
+.rv-head:focus-visible { outline: 2px solid rgba(212, 169, 106, 0.5); outline-offset: -2px; }
+
+.rv-title-line { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+.rv-title {
+  font-size: 1.05rem; font-weight: 700; color: #f0d8a8;
+  font-family: 'Space Grotesk', serif;
+  letter-spacing: 0.01em;
+}
+.rv-year {
+  font-size: 0.85rem; color: #8a7148; font-weight: 500;
+  font-variant-numeric: oldstyle-nums;
+}
+.rv-meta {
+  font-size: 0.7rem; color: #6a5530; margin-top: 0.2rem;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+.rv-scores {
+  display: flex; gap: 0.6rem; margin-top: 0.7rem; flex-wrap: wrap;
+}
+.rv-score {
+  background: #1c170d;
+  border: 1px solid #2e2415;
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  min-width: 0;
+}
+.rv-score-axis {
+  font-size: 0.6rem; color: #7a623a;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  font-weight: 600; margin-bottom: 0.15rem;
+}
+.rv-score-num {
+  font-size: 0.95rem; color: #e0c890;
+  font-weight: 700; font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.rv-score-denom { color: #6a5530; font-weight: 500; font-size: 0.75rem; }
+
+.rv-preview {
+  padding: 0 1rem 1rem 1rem;
+  color: #9a8050; font-size: 0.85rem;
+  line-height: 1.5;
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.rv-body {
+  padding: 0.2rem 1rem 1.2rem 1rem;
+  color: #d8c8a8;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.93rem;
+  line-height: 1.65;
+  letter-spacing: 0.005em;
+}
+.rv-body p { margin: 0 0 0.9rem 0; }
+.rv-body p:first-child::first-letter {
+  font-size: 2.4rem; font-weight: 700; float: left;
+  line-height: 1; padding: 0.15rem 0.4rem 0 0;
+  color: #d4a96a; font-family: Georgia, serif;
+}
+.rv-body em, .rv-body i { color: #e4d0a4; }
+.rv-body strong, .rv-body b { color: #f0d8a8; }
+.rv-body hr {
+  border: 0; border-top: 1px solid #2e2415;
+  margin: 1.2rem 0 0.8rem 0;
+}
