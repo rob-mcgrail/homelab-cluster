@@ -1,9 +1,9 @@
-.panel-film-reviews { background: #0d0a07; }
+.panel-film-reviews { background: #0a0d07; }
 
 .lizard {
   font-size: 2.4rem; position: absolute; top: 24px;
   animation: skitter 14s ease-in-out infinite;
-  filter: drop-shadow(0 0 10px rgba(220, 170, 90, 0.3));
+  filter: drop-shadow(0 0 10px rgba(196, 181, 106, 0.3));
 }
 /* Lizard moves in bursts — quick skitter then long pause, like the
    real thing on a sun-warm rock. Flips horizontally at each end. */
@@ -21,8 +21,8 @@
 
 .section-title-sepia {
   font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
-  color: #d4a96a; margin-bottom: 1rem;
-  text-shadow: 0 0 10px rgba(212, 169, 106, 0.25);
+  color: #c4b56a; margin-bottom: 1rem;
+  text-shadow: 0 0 10px rgba(196, 181, 106, 0.25);
 }
 
 .rv-header-row {
@@ -33,7 +33,7 @@
 .rv-commission-btn {
   background: transparent;
   border: 1px solid #54401e;
-  color: #d4a96a;
+  color: #c4b56a;
   padding: 0.4rem 0.8rem;
   border-radius: 8px;
   font-size: 0.8rem;
@@ -43,8 +43,8 @@
   font-family: inherit;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.rv-commission-btn:hover { background: rgba(212, 169, 106, 0.08); border-color: #7a5d2c; }
-.rv-commission-btn:active { background: rgba(212, 169, 106, 0.14); }
+.rv-commission-btn:hover { background: rgba(196, 181, 106, 0.08); border-color: #7a5d2c; }
+.rv-commission-btn:active { background: rgba(196, 181, 106, 0.14); }
 
 .rv-pending {
   background: #110d07;
@@ -52,8 +52,8 @@
   opacity: 0.85;
 }
 .rv-pending-badge {
-  background: rgba(212, 169, 106, 0.15);
-  color: #d4a96a;
+  background: rgba(196, 181, 106, 0.15);
+  color: #c4b56a;
   padding: 0.15rem 0.45rem;
   border-radius: 6px;
   font-size: 0.62rem;
@@ -98,7 +98,7 @@
   font-size: 1.5rem; line-height: 1; cursor: pointer;
   padding: 0 0.3rem;
 }
-.rv-modal-close:hover { color: #d4a96a; }
+.rv-modal-close:hover { color: #c4b56a; }
 
 .rv-form { display: flex; flex-direction: column; gap: 0.8rem; }
 .rv-field { display: flex; flex-direction: column; gap: 0.3rem; }
@@ -121,7 +121,7 @@
   outline: none;
   transition: border-color 0.15s ease;
 }
-.rv-input:focus { border-color: #d4a96a; }
+.rv-input:focus { border-color: #c4b56a; }
 .rv-textarea {
   font-family: Georgia, 'Times New Roman', serif;
   line-height: 1.45;
@@ -145,9 +145,9 @@
   border-color: #2e2415;
   color: #8a7148;
 }
-.rv-btn-ghost:hover { color: #d4a96a; border-color: #54401e; }
+.rv-btn-ghost:hover { color: #c4b56a; border-color: #54401e; }
 .rv-btn-primary {
-  background: #d4a96a;
+  background: #c4b56a;
   color: #15110a;
 }
 .rv-btn-primary:hover { background: #e4bb7c; }
@@ -177,7 +177,7 @@
   cursor: pointer;
   user-select: none;
 }
-.rv-head:focus-visible { outline: 2px solid rgba(212, 169, 106, 0.5); outline-offset: -2px; }
+.rv-head:focus-visible { outline: 2px solid rgba(196, 181, 106, 0.5); outline-offset: -2px; }
 
 .rv-title-line { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
 .rv-title {
@@ -236,7 +236,7 @@
 .rv-body p:first-child::first-letter {
   font-size: 2.4rem; font-weight: 700; float: left;
   line-height: 1; padding: 0.15rem 0.4rem 0 0;
-  color: #d4a96a; font-family: Georgia, serif;
+  color: #c4b56a; font-family: Georgia, serif;
 }
 .rv-body em, .rv-body i { color: #e4d0a4; }
 .rv-body strong, .rv-body b { color: #f0d8a8; }

@@ -2,7 +2,7 @@
 
 Docker Compose stack for a home media server with a mobile-first dashboard and an AI-powered movie bot.
 
-**Services:** Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Navidrome (music streaming), Home Assistant (Reolink cameras + floodlight automation), Pi-hole (network-wide DNS + ad-blocking + optional DHCP), Caddy (reverse proxy), jellyfin-proxy (HEVC force-transcode shim), Dashboard (Movie Bot + ad-hoc YouTube grab panel)
+**Services:** Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Navidrome (music streaming), Home Assistant (Reolink cameras + floodlight automation), Pi-hole (network-wide DNS + ad-blocking + optional DHCP), Caddy (reverse proxy), jellyfin-proxy (HEVC force-transcode shim), Dashboard (Movie Bot + ad-hoc YouTube grab panel), tv (IPTV playlist manager)
 
 ## What it does
 
@@ -199,6 +199,7 @@ All services are available via HTTPS at `<service>.yourdomain.org`:
 | Navidrome | `https://navidrome.yourdomain.org` |
 | Home Assistant | `https://ha.yourdomain.org` |
 | Pi-hole | `https://pihole.yourdomain.org/admin` |
+| tv (IPTV playlist manager) | `https://tv.yourdomain.org` (UI), `https://tv.yourdomain.org/playlist.m3u` (IPTV endpoint) |
 
 Services are also available on their original ports via IP for direct access.
 
@@ -420,6 +421,10 @@ docker-compose.yml      # All service definitions
 Caddyfile               # Reverse proxy + HTTPS config
 dashboard/              # Bun web app — the Movie Bot UI
 auth/                   # Bun cookie-minter for the LAN-bootstrapped auth gate (External access section)
+tv/                     # Bun + SQLite IPTV playlist manager (channel CRUD, M3U import, /playlist.m3u render)
+  data/tv.db            #   single-file SQLite db, committed to the repo as a soft backup
+  server.ts             #   API + M3U parser/renderer (POST /api/channels is the "add one channel" hook)
+  public/               #   SPA: drag-to-reorder, inline edit, bulk ops, hls.js test player
 movie-bot-requests/     # Cron worker that consumes the prompt queue (runs every minute)
 movie-bot-download-triage/ # Cron worker that triages the qBit queue + promotes fresh requests (every 4h)
 movie-bot-recommendations/ # Cron worker that generates weekly film recs (Sunday 06:00 UTC)

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tv — playlist manager</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="logo">📺</span><b>tv</b></div>
+  <input id="search" type="search" placeholder="Search name or group…" autocomplete="off">
+  <select id="group-filter"><option value="">All groups</option></select>
+  <select id="status-filter">
+    <option value="all">All</option>
+    <option value="enabled" selected>Enabled only</option>
+    <option value="disabled">Disabled only</option>
+  </select>
+  <span class="counts" id="counts">…</span>
+  <a class="link" href="/playlist.m3u" target="_blank">/playlist.m3u</a>
+  <a class="link" href="/playlist.txt" target="_blank">preview</a>
+  <button id="toggle-import" class="btn">Import…</button>
+</header>
+
+<section id="import-panel" class="import-panel" hidden>
+  <div class="row">
+    <input id="import-url" type="url" placeholder="https://… playlist URL">
+    <button id="do-import" class="btn primary">Fetch &amp; merge</button>
+    <button id="close-import" class="btn ghost">Cancel</button>
+  </div>
+  <div class="row">
+    <textarea id="import-paste" placeholder="…or paste an #EXTM3U file" rows="4"></textarea>
+    <button id="do-paste-import" class="btn">Import pasted</button>
+  </div>
+  <div id="import-status" class="status"></div>
+  <p class="hint">Merge rule: new <code>stream_url</code>s are appended in order with default UA <b>chrome</b>; existing entries are left untouched so your renames / UA picks survive re-imports.</p>
+</section>
+
+<section id="bulkbar" class="bulkbar" hidden>
+  <span class="sel-count"><b id="sel-n">0</b> selected</span>
+  <button class="btn" data-bulk="enable">Enable</button>
+  <button class="btn" data-bulk="disable">Disable</button>
+  <select id="bulk-ua-select">
+    <option value="">Set UA…</option>
+  </select>
+  <button class="btn danger" data-bulk="delete">Delete</button>
+  <button class="btn ghost" id="clear-sel">Clear</button>
+</section>
+
+<main>
+  <table class="channels">
+    <thead>
+      <tr>
+        <th class="col-grip"></th>
+        <th class="col-check"><input type="checkbox" id="check-all" title="Select visible"></th>
+        <th class="col-pos">#</th>
+        <th class="col-logo">Logo</th>
+        <th class="col-name">Name</th>
+        <th class="col-group">Group</th>
+        <th class="col-ua">User-Agent</th>
+        <th class="col-en">On</th>
+        <th class="col-test">Test</th>
+        <th class="col-del"></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div id="empty" class="empty" hidden>
+    No channels yet. Hit <b>Import…</b> above and paste a playlist URL.
+  </div>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>

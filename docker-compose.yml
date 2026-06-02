@@ -262,6 +262,32 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
+  tv:
+    build: ./tv
+    container_name: tv
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    # DOMAIN is needed so the M3U's url-tvg attribute can advertise the
+    # public address of /epg.xml.gz to consumers.
+    environment:
+      - DOMAIN=${DOMAIN}
+    # No host ports — Caddy reaches it on the docker network at tv:8000.
+    # The /playlist.m3u endpoint is meant for LAN IPTV clients and is
+    # served via Caddy's tv.{DOMAIN} block (LAN-only by the wildcard A
+    # record pointing at the LAN IP).
+    volumes:
+      # SQLite db lives in ./tv/data and is committed to the repo as a
+      # soft backup. Bind-mounted (not a named volume) so the file shows
+      # up in `git status` after edits.
+      - ./tv/data:/app/data
+      # Bind-mount public/ so UI tweaks don't need an image rebuild
+      # (matches the dashboard pattern).
+      - ./tv/public:/app/public
+    restart: unless-stopped
+
   auth:
     build: ./auth
     container_name: auth

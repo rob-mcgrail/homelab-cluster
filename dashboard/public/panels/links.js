@@ -11,6 +11,7 @@ const SERVICES = [
   { host: 'qbittorrent',              name: 'qBittorrent',                 desc: 'Download client' },
   { host: 'bazarr',                   name: 'Bazarr',                      desc: 'Subtitle management' },
   { host: 'navidrome',                name: 'Navidrome',                   desc: 'Music streaming server' },
+  { host: 'tv',                       name: 'tv',                          desc: 'IPTV playlist manager (renders /playlist.m3u)' },
   { host: 'ha',                       name: 'Home Assistant',              desc: 'Floodlights, sirens, automations' },
   { host: 'pihole',                   name: 'Pi-hole',                     desc: 'Network-wide DNS ad-blocker', path: '/admin/' },
   { host: 'auth.www',                 name: 'Auth',                        desc: 'Mint a fresh access cookie (do before leaving the LAN)' },

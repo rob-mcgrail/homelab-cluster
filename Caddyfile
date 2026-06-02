@@ -85,3 +85,7 @@ auth.www.{$DOMAIN} {
 pihole.{$DOMAIN} {
 	reverse_proxy host.docker.internal:7001
 }
+
+tv.{$DOMAIN} {
+	reverse_proxy tv:8000
+}
