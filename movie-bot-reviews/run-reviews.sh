@@ -13,13 +13,13 @@
 #
 # The bot runs in two passes:
 #   1. Writer pass — drafts to movie-bot-data/.review-drafts/<slug>-<runId>.draft.md
-#   2. Revision pass — fresh Claude session, reads the draft cold, rewrites
+#   2. Revision pass — fresh pi session, reads the draft cold, rewrites
 #      ruthlessly, writes the final to movie-bot-data/reviews/, deletes the draft.
 # The revision pass is framed as the same author returning to their own work,
 # not as a separate editor — gives full prose authority without anxiety about
 # overstepping.
 #
-# Add to crontab: 0 4 * * * /path/to/homelab-cluster/movie-bot-reviews/run-reviews.sh
+# Add to crontab: 0 4 * * 1 /path/to/homelab-cluster/movie-bot-reviews/run-reviews.sh
 
 set -u
 
@@ -99,7 +99,13 @@ log "slug: $SLUG"
 log "draft path: $DRAFT_PATH"
 log "final path: $FINAL_PATH"
 
-CLAUDE="$(command -v claude 2>/dev/null || echo "$HOME/.local/bin/claude")"
+# pi binary (nvm-managed, so not on cron's PATH — fall back to the
+# highest-versioned node bin)
+PI="$(command -v pi 2>/dev/null || ls -1 "$HOME"/.nvm/versions/node/*/bin/pi 2>/dev/null | sort -V | tail -n1)"
+
+# deepseek-v4-pro on both passes — film criticism is the bot's most
+# judgment- and prose-heavy job, so it gets the stronger model.
+PI_ARGS=(--provider openrouter --model deepseek/deepseek-v4-pro --thinking high -a)
 
 # --- 2. Writer pass ---
 
@@ -129,7 +135,7 @@ the reviews directory — that's the revision pass's job.
 log "=== writer pass starting $(date -u +%FT%TZ) ==="
 {
     echo "=== WRITER PASS ==="
-    cd "$REPO_ROOT" && "$CLAUDE" --dangerously-skip-permissions -p "$writer_body"
+    cd "$REPO_ROOT" && "$PI" "${PI_ARGS[@]}" -p "$writer_body"
 } >> "$runlog" 2>&1
 
 if [ ! -f "$DRAFT_PATH" ]; then
@@ -138,7 +144,7 @@ if [ ! -f "$DRAFT_PATH" ]; then
 fi
 log "=== writer pass done $(date -u +%FT%TZ), draft $(wc -c < "$DRAFT_PATH") bytes ==="
 
-# --- 3. Revision pass (fresh Claude session, cold read) ---
+# --- 3. Revision pass (fresh pi session, cold read) ---
 
 revision_body="$(cat "$HOUSE_STYLE")
 
@@ -163,7 +169,7 @@ log "=== revision pass starting $(date -u +%FT%TZ) ==="
 {
     echo
     echo "=== REVISION PASS ==="
-    cd "$REPO_ROOT" && "$CLAUDE" --dangerously-skip-permissions -p "$revision_body"
+    cd "$REPO_ROOT" && "$PI" "${PI_ARGS[@]}" -p "$revision_body"
 } >> "$runlog" 2>&1
 
 if [ ! -f "$FINAL_PATH" ]; then

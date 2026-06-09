@@ -69,7 +69,7 @@ export function fmtLease(expiryEpoch) {
   return `expires ${Math.floor(d / 86400)}d`;
 }
 
-// Strip any accidental outer code fence Claude may emit, then parse markdown
+// Strip any accidental outer code fence the model may emit, then parse markdown
 // and wrap <table>s in scroll containers for mobile.
 export function renderTriageMd(md) {
   let clean = md.trim();

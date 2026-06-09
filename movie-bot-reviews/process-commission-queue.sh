@@ -1,7 +1,7 @@
 #!/bin/bash
 # Cron: every minute, process queued commissions. The dashboard's POST
-# /api/film-reviews/commission endpoint can't invoke the Claude Code
-# CLI directly (the dashboard runs in a container with no `claude`
+# /api/film-reviews/commission endpoint can't invoke the pi coding
+# agent directly (the dashboard runs in a container with no `pi`
 # binary), so it drops a JSON file into the queue dir and this host
 # script picks them up.
 #

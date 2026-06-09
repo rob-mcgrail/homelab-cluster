@@ -68,7 +68,13 @@ log() { echo "$@" | tee -a "$RUNLOG" >&2; }
 log "commission: $FILM_TITLE ($FILM_YEAR) — slug=$slug runId=$ts"
 log "take: $TAKE"
 
-CLAUDE="$(command -v claude 2>/dev/null || echo "$HOME/.local/bin/claude")"
+# pi binary (nvm-managed, so not on cron's PATH — fall back to the
+# highest-versioned node bin)
+PI="$(command -v pi 2>/dev/null || ls -1 "$HOME"/.nvm/versions/node/*/bin/pi 2>/dev/null | sort -V | tail -n1)"
+
+# deepseek-v4-pro on both passes — same prose/judgment-heavy review
+# flow as the nightly cron.
+PI_ARGS=(--provider openrouter --model deepseek/deepseek-v4-pro --thinking high -a)
 
 # --- Writer pass ---
 writer_body="$(cat "$HOUSE_STYLE")
@@ -100,7 +106,7 @@ frontmatter if not known.
 log "=== writer pass starting $(date -u +%FT%TZ) ==="
 {
     echo "=== WRITER PASS ==="
-    cd "$REPO_ROOT" && "$CLAUDE" --dangerously-skip-permissions -p "$writer_body"
+    cd "$REPO_ROOT" && "$PI" "${PI_ARGS[@]}" -p "$writer_body"
 } >> "$RUNLOG" 2>&1
 
 if [ ! -f "$DRAFT_PATH" ]; then
@@ -146,7 +152,7 @@ log "=== revision pass starting $(date -u +%FT%TZ) ==="
 {
     echo
     echo "=== REVISION PASS ==="
-    cd "$REPO_ROOT" && "$CLAUDE" --dangerously-skip-permissions -p "$revision_body"
+    cd "$REPO_ROOT" && "$PI" "${PI_ARGS[@]}" -p "$revision_body"
 } >> "$RUNLOG" 2>&1
 
 if [ ! -f "$FINAL_PATH" ]; then

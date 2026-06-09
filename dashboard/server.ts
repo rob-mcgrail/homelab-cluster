@@ -1046,7 +1046,7 @@ const server = Bun.serve({
       }
     }
 
-    // Commission a review. The dashboard container has no `claude`
+    // Commission a review. The dashboard container has no `pi`
     // binary so we can't run the bot here — we drop a queue file and a
     // host cron picks it up within the next minute (see
     // movie-bot-reviews/process-commission-queue.sh).

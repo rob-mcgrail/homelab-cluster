@@ -6,7 +6,7 @@ Docker Compose stack for a home media server with a mobile-first dashboard and a
 
 ## What it does
 
-- **Movie Bot** — a web dashboard where you type a request ("get me the Scorsese filmography") and a cron job picks it up and runs Claude Code to add content via the arr stack APIs
+- **Movie Bot** — a web dashboard where you type a request ("get me the Scorsese filmography") and a cron job picks it up and runs the [pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) (DeepSeek V4 via OpenRouter) to add content via the arr stack APIs
 - **HTTPS everywhere** — Caddy gets real Let's Encrypt certs via Cloudflare DNS-01 challenge, no ports exposed to the internet
 - **Mobile app** — swipeable panels with pull-to-refresh: prompt input, response history, torrent status, server stats, service links
 - **Desktop grid** — all panels visible at once with auto-polling
@@ -30,14 +30,39 @@ sudo usermod -aG docker $USER
 # jq (used by backup/restore scripts)
 sudo apt install -y jq
 
-# Claude Code (for Movie Bot)
-curl -fsSL https://claude.ai/install.sh | sh
-
 # mergerfs (for drive pooling)
 sudo apt install -y mergerfs
 ```
 
 Log out and back in after adding yourself to the docker group.
+
+#### pi coding agent (for Movie Bot)
+
+The Movie Bot cron jobs drive the [`pi`](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) coding agent on DeepSeek V4 (via OpenRouter). `pi` is an npm package, so it needs Node — installed here via nvm so cron can find a stable binary path:
+
+```sh
+# 1. Install nvm
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+# Load nvm into the current shell (the installer also adds this to your profile)
+export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh"
+
+# 2. Install the latest Node LTS
+nvm install --lts
+nvm use --lts
+
+# 3. Install pi globally (--ignore-scripts: skip the package's
+#    post-install scripts; pi fetches its helper binaries on first run)
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+pi --version   # sanity check
+```
+
+Then point `pi` at OpenRouter. The cron scripts pass `--provider openrouter --model deepseek/deepseek-v4-{flash,pro}` explicitly, so only the API key needs configuring — store it in pi's auth (`~/.pi/agent/auth.json`) by running `pi` once interactively and choosing OpenRouter, or set it in your shell profile:
+
+```sh
+export OPENROUTER_API_KEY=sk-or-...
+```
+
+> **Note on cron + nvm:** nvm's `pi` lives under `~/.nvm/versions/node/<ver>/bin/`, which isn't on cron's minimal `PATH`. The Movie Bot scripts handle this by resolving `pi` with `command -v pi || ls ~/.nvm/versions/node/*/bin/pi | sort -V | tail -1`, so no PATH tweaks to the crontab are needed.
 
 ### 2. Mount your storage
 
@@ -126,19 +151,25 @@ Add to your crontab (`crontab -e`):
 
 ```
 * * * * * /path/to/homelab-cluster/movie-bot-requests/run-prompt.sh
-0 */4 * * * /path/to/homelab-cluster/movie-bot-download-triage/run-triage.sh
+0 2 * * * /path/to/homelab-cluster/movie-bot-download-triage/run-triage.sh
 0 6 * * 0 /path/to/homelab-cluster/movie-bot-recommendations/run-recs.sh
 0 3 * * * /path/to/homelab-cluster/movie-bot-double-features/run-double-features.sh
 0 4 * * * /path/to/homelab-cluster/scripts/missing-sweep.sh
 0 5 * * 1 /path/to/homelab-cluster/scripts/cutoff-sweep.sh
+30 5 * * * /path/to/homelab-cluster/scripts/cam-recordings-prune.sh
+0 4 * * 1 /path/to/homelab-cluster/movie-bot-reviews/run-reviews.sh
+* * * * * /path/to/homelab-cluster/movie-bot-reviews/process-commission-queue.sh
 ```
 
-- **`run-prompt.sh`** — every minute, picks up new user prompts from the dashboard queue and runs Claude Code to process them.
-- **`run-triage.sh`** — every 4 hours, judgment-driven review of (a) the qBittorrent queue and (b) Radarr's monitored-but-missing list. On the torrent side: pauses + re-searches stalled torrents, removes + blocklists dead releases, cleans up orphaned `missingFiles` (with a safety cap), and priority-boosts fresh small-batch requests. On the Radarr side: triggers per-movie fresh searches on stuck-missing titles and escalates the quality profile to **RobDifficult** when a movie has been monitored+missing for 14+ days under a stricter profile. See `movie-bot-download-triage/triage-prompt.txt` for the full decision framework.
-- **`run-recs.sh`** — every Sunday at 06:00 UTC, generates fresh film recommendations based on the user's watch history, saved thoughts, and prior rec ratings (seen-good / seen-bad). Appends recs to `movie-bot-data/recommendations.jsonl` for the dashboard Recs Bot panel to display. See `movie-bot-recommendations/recs-prompt.txt` for the decision framework.
-- **`run-double-features.sh`** — every night at 03:00 UTC, proposes thematic double-feature pairings drawn from the Jellyfin "Films" library (excluding already-watched and already-paired titles). No-ops if the panel already holds 6+ non-dismissed suggestions, and adds at most 2 per run. Suggestions live as one markdown file per pairing in `movie-bot-data/double-features/`; dismissing one moves the file to `movie-bot-data/dismissed-double-features/` so the bot won't repeat it. See `movie-bot-double-features/double-features-prompt.txt` for the decision framework.
+- **`run-prompt.sh`** — every minute, picks up new user prompts from the dashboard queue and runs the pi agent (DeepSeek V4 Flash) to process them. No pi call on an empty queue.
+- **`run-triage.sh`** — daily at 02:00 UTC (before the missing-sweep at 04:00), judgment-driven review of (a) the qBittorrent queue and (b) Radarr's monitored-but-missing list, on DeepSeek V4 Flash. On the torrent side: pauses + re-searches stalled torrents, removes + blocklists dead releases, cleans up orphaned `missingFiles` (with a safety cap), and priority-boosts fresh small-batch requests. On the Radarr side: triggers per-movie fresh searches on stuck-missing titles and escalates the quality profile to **RobDifficult** when a movie has been monitored+missing for 14+ days under a stricter profile. See `movie-bot-download-triage/triage-prompt.txt` for the full decision framework.
+- **`run-recs.sh`** — every Sunday at 06:00 UTC, generates fresh film recommendations (DeepSeek V4 Pro) based on the user's watch history, saved thoughts, and prior rec ratings (seen-good / seen-bad). Appends recs to `movie-bot-data/recommendations.jsonl` for the dashboard Recs Bot panel to display. See `movie-bot-recommendations/recs-prompt.txt` for the decision framework.
+- **`run-double-features.sh`** — every night at 03:00 UTC, proposes thematic double-feature pairings (DeepSeek V4 Pro) drawn from the Jellyfin "Films" library (excluding already-watched and already-paired titles). No-ops if the panel already holds 6+ non-dismissed suggestions, and adds at most 2 per run. Suggestions live as one markdown file per pairing in `movie-bot-data/double-features/`; dismissing one moves the file to `movie-bot-data/dismissed-double-features/` so the bot won't repeat it. See `movie-bot-double-features/double-features-prompt.txt` for the decision framework.
 - **`missing-sweep.sh`** — every day at 04:00 UTC, triggers `MissingEpisodeSearch` (Sonarr) and `MissingMoviesSearch` (Radarr). Fills gaps where a monitored item has no file yet. Daily because new releases appear regularly and recently-monitored series often have many missing episodes.
 - **`cutoff-sweep.sh`** — every Monday at 05:00 UTC, triggers `CutoffUnmetEpisodeSearch` (Sonarr) and `CutoffUnmetMoviesSearch` (Radarr). Pulls upgrades for items below the quality profile's cutoff. Weekly because backlog upgrades materialise slowly — better releases of old catalog content are rare — so daily would be load for near-zero signal. Both sweeps log to `movie-bot-data/sweep-logs/`.
+- **`cam-recordings-prune.sh`** — every day at 05:30 UTC, prunes old Home Assistant camera clips from `/mnt/disk2/cam-recordings/` to cap disk usage.
+- **`run-reviews.sh`** — Monday at 04:00 UTC, writes one deep film-criticism review (DeepSeek V4 Pro) of a randomly drawn Jellyfin "Films" title via a two-pass writer→revision flow. Output lands in `movie-bot-data/reviews/`. See `movie-bot-reviews/`.
+- **`process-commission-queue.sh`** — every minute, drains the dashboard's review-commission queue, spawning `commission-review.sh` (DeepSeek V4 Pro, same two-pass flow) per queued film. No pi call on an empty queue.
 
 ### 9. Pi-hole (optional but recommended)
 

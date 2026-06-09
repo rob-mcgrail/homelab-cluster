@@ -15,17 +15,21 @@ fi
 echo $$ > "$LOCKFILE"
 trap 'rm -f "$LOCKFILE"' EXIT
 
-CLAUDE="$(command -v claude 2>/dev/null || echo "$HOME/.local/bin/claude")"
+# pi binary (nvm-managed, so not on cron's PATH — fall back to the
+# highest-versioned node bin)
+PI="$(command -v pi 2>/dev/null || ls -1 "$HOME"/.nvm/versions/node/*/bin/pi 2>/dev/null | sort -V | tail -n1)"
 RECS_FILE="$DATA_DIR/recommendations.jsonl"
 mkdir -p "$LOGDIR"
 
 # Capture the recs file size before the run so we can detect whether
-# claude actually appended anything new — only notify the user when
+# the bot actually appended anything new — only notify the user when
 # fresh recs landed, not on every cron tick.
 before=$(wc -l < "$RECS_FILE" 2>/dev/null | tr -d ' ' || echo 0)
 
 ts=$(date -u +%Y%m%dT%H%M%SZ)
-cd "$REPO_ROOT" && "$CLAUDE" --dangerously-skip-permissions -p "$(cat "$PROMPT")" \
+# deepseek-v4-pro — recommendations lean on taste and judgment, so the
+# stronger model earns its keep here.
+cd "$REPO_ROOT" && "$PI" --provider openrouter --model deepseek/deepseek-v4-pro --thinking high -a -p "$(cat "$PROMPT")" \
     > "$LOGDIR/${ts}.md" 2>&1
 
 # Retain last 20 runs, prune older

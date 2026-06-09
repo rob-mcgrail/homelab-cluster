@@ -1,5 +1,5 @@
 #!/bin/bash
-# Cron job: picks up prompts from the dashboard and runs Claude Code
+# Cron job: picks up prompts from the dashboard and runs the pi coding agent
 # Add to crontab: * * * * * /path/to/homelab-cluster/movie-bot-requests/run-prompt.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,8 +18,9 @@ fi
 echo $$ > "$LOCKFILE"
 trap 'rm -f "$LOCKFILE"' EXIT
 
-# Find claude binary
-CLAUDE="$(command -v claude 2>/dev/null || echo "$HOME/.local/bin/claude")"
+# Find pi binary (nvm-managed, so not on cron's PATH — fall back to the
+# highest-versioned node bin)
+PI="$(command -v pi 2>/dev/null || ls -1 "$HOME"/.nvm/versions/node/*/bin/pi 2>/dev/null | sort -V | tail -n1)"
 
 mkdir -p "$COMPLETED_DIR"
 
@@ -33,10 +34,10 @@ for f in "$PENDING_DIR"/*.txt; do
     full_prompt=$(<"$TEMPLATE")
     full_prompt="${full_prompt//\{\{PROMPT\}\}/$user_prompt}"
 
-    # Run Claude Code on Sonnet — this job is mechanical arr-stack
+    # Run pi on deepseek-v4-flash — this job is mechanical arr-stack
     # management (search title, pick profile, add to Sonarr/Radarr,
-    # trigger search). Doesn't need Opus's deeper judgment.
-    cd "$PROJECT_DIR" && "$CLAUDE" --model claude-sonnet-4-6 --dangerously-skip-permissions -p "$full_prompt" \
+    # trigger search). Doesn't need v4-pro's deeper judgment.
+    cd "$PROJECT_DIR" && "$PI" --provider openrouter --model deepseek/deepseek-v4-flash --thinking high -a -p "$full_prompt" \
         > "$COMPLETED_DIR/${base}.out" 2>&1
 
     # Move processed prompt

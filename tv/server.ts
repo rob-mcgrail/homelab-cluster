@@ -359,7 +359,7 @@ Bun.serve({
 
     // API: create one channel from primitives. The bulk path is /api/import
     // (M3U URL or pasted text). This route is the cleaner shape when an
-    // operator (or Claude Code) wants to drop in a single channel.
+    // operator (or the pi agent) wants to drop in a single channel.
     if (p === "/api/channels" && method === "POST") {
       const body = await readJson(req);
       if (!body) return json({ error: "invalid json" }, 400);
