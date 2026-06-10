@@ -4,6 +4,49 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <title>Movie Bot</title>
+  <!-- Auth bounce guard. The HTML + JS are in Caddy's @public bucket and
+       are edge/browser-cached, so the dashboard renders even when the
+       homelab_auth cookie has expired — but every /api/* call then 302s
+       to the LAN-only auth origin, leaving a dead dashboard with no data
+       ("stale cookie, no interactions"). forward_auth does this redirect
+       automatically on an uncached request; this restores the same
+       behaviour when the page was served from cache and never hit the
+       gate. The cookie is HttpOnly so JS can't read it — instead we probe
+       a gated endpoint with redirect:'manual' (a 302 surfaces as an
+       opaque redirect, status 0, with no cross-origin connection
+       attempted, so it's instant even for off-LAN clients) and, if
+       bounced, do a full top-level navigation to the auth origin to mint
+       a fresh cookie and come back. Inlined here (not a separate .js)
+       because index.html is public but an extra asset file would itself
+       be gated and 302'd — breaking the guard for the very users it's
+       meant to rescue. Runs before the module graph loads so an
+       unauthenticated client bounces before fetching the whole panel set. -->
+  <script>
+    (function () {
+      var BOUNCE_KEY = 'authBounceAt';
+      var BOUNCE_COOLDOWN_MS = 15000;
+      function bounce() {
+        // Loop guard: if we bounced moments ago and are STILL unauthed,
+        // the mint didn't take (e.g. off-LAN, auth origin unreachable).
+        // Stop redirecting so the user gets a real error / stale page
+        // rather than an endless redirect loop.
+        var last = +(sessionStorage.getItem(BOUNCE_KEY) || 0);
+        if (Date.now() - last < BOUNCE_COOLDOWN_MS) return;
+        sessionStorage.setItem(BOUNCE_KEY, String(Date.now()));
+        // location.host is www.{DOMAIN}; the mint origin is auth.www.{DOMAIN}.
+        // replace() (not assign) so the dead state isn't left in history.
+        location.replace('https://auth.' + location.host + '/?next=' + encodeURIComponent(location.href));
+      }
+      function check() {
+        fetch('/api/config', { redirect: 'manual', cache: 'no-store' })
+          .then(function (res) { if (res.type === 'opaqueredirect' || res.status === 0) bounce(); })
+          .catch(function () { /* genuine network error — leave the page alone */ });
+      }
+      check();
+      // The cookie can lapse while the tab sits backgrounded; re-check on resume.
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
