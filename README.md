@@ -8,8 +8,8 @@ and then runs standalone — no server, no cloud.
 
 ## What it shows
 
-- **LCD line 1**: current band — `POWER VERY CHEAP` / `POWER IS CHEAP` /
-  `POWER EXPENSIVE` (16-char limit rules out longer wording)
+- **LCD line 1**: current band — `Power very cheap` / `Power is cheap` /
+  `Power expensive` (16-char limit rules out longer wording)
 - **LCD line 2**: clock and when the band ends — `2:32 ends 5:00`
   (12-hour, no am/pm)
 - **RGB bar**: band colour (green / amber / red); the number of lit LEDs

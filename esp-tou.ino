@@ -37,7 +37,7 @@ constexpr float LONGITUDE = 174.78;
 // ---------------- Tariff schedule ----------------
 enum Band : uint8_t { VERY_CHEAP, OFF_PEAK, PEAK };
 // Shown on LCD line 1 — must fit in 16 characters
-const char* BAND_NAME[] = {"POWER VERY CHEAP", "POWER IS CHEAP", "POWER EXPENSIVE"};
+const char* BAND_NAME[] = {"Power very cheap", "Power is cheap", "Power expensive"};
 
 // Each window runs from startMin until the next entry's start (wraps at
 // midnight). Entries must be sorted by startMin. Same schedule every day.
