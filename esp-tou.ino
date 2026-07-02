@@ -7,6 +7,8 @@
 //   RGB bar: band colour, lit length = fraction of the band remaining.
 
 #include <WiFi.h>
+#include <WebServer.h>
+#include <ESPmDNS.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_NeoPixel.h>
@@ -53,6 +55,16 @@ constexpr int MIN_PER_DAY = 24 * 60;
 
 LiquidCrystal_I2C* lcd = nullptr;
 Adafruit_NeoPixel strip(PIXEL_COUNT, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
+WebServer server(80);
+
+// Message override state (set via GET /show)
+String overrideText;
+uint32_t overrideColor = 0xFFFFFF;  // 0xRRGGBB
+uint32_t overrideUntil = 0;         // millis() deadline
+
+bool overrideActive() {
+  return overrideText.length() > 0 && (int32_t)(overrideUntil - millis()) > 0;
+}
 
 Band bandAt(int minuteOfDay) {
   Band b = SCHEDULE[N_WINDOWS - 1].band;  // last window wraps past midnight
@@ -153,6 +165,14 @@ void lcdLine(int row, const String& text) {
 
 // PCF8574 backpacks live at 0x20-0x27, PCF8574A at 0x38-0x3F.
 // Returns 0 if nothing answers.
+void setBacklight(bool on) {
+  static int last = -1;
+  if (lcd == nullptr) return;
+  if ((int)on == last) return;
+  last = (int)on;
+  if (on) lcd->backlight(); else lcd->noBacklight();
+}
+
 uint8_t findLcdAddress() {
   for (uint8_t addr = 0x20; addr <= 0x3F; addr++) {
     if (addr == 0x28) addr = 0x38;
@@ -179,6 +199,15 @@ void ensureLcd() {
 }
 
 // ---------------- Display ----------------
+// "2:32" style 12-hour clock — no room for am/pm on a 16-char line
+String clock12(int hour, int minute) {
+  int h = hour % 12;
+  if (h == 0) h = 12;
+  char buf[6];
+  snprintf(buf, sizeof(buf), "%d:%02d", h, minute);
+  return String(buf);
+}
+
 void showStatus(const String& l1, const String& l2) {
   lcdLine(0, l1);
   lcdLine(1, l2);
@@ -193,21 +222,12 @@ void render(const tm& now) {
   int total     = remaining + elapsed;
   int endMin    = (minuteOfDay + remaining) % MIN_PER_DAY;
 
-  char line2[17];
-  snprintf(line2, sizeof(line2), "%02d:%02d ends %02d:%02d",
-           now.tm_hour, now.tm_min, endMin / 60, endMin % 60);
   lcdLine(0, BAND_NAME[band]);
-  lcdLine(1, line2);
+  lcdLine(1, clock12(now.tm_hour, now.tm_min) + " ends " +
+                 clock12(endMin / 60, endMin % 60));
 
   // backlight only during daylight; the RGB bar carries the signal at night
-  if (lcd != nullptr) {
-    static int lastDark = -1;
-    int dark = isDark(now) ? 1 : 0;
-    if (dark != lastDark) {
-      lastDark = dark;
-      if (dark) lcd->noBacklight(); else lcd->backlight();
-    }
-  }
+  setBacklight(!isDark(now));
 
   // RGB bar: drains as the band runs out
   int lit = (remaining * PIXEL_COUNT + total - 1) / total;  // ceil
@@ -221,10 +241,130 @@ void render(const tm& now) {
   strip.show();
 }
 
-// ---------------- Setup / loop ----------------
+// ---------------- HTTP API ----------------
 bool timeIsSet() {
   return time(nullptr) > 1700000000;  // any plausible current epoch
 }
+
+// Accepts "RRGGBB", "#RRGGBB", or a colour name. Yields 0xRRGGBB.
+bool parseColor(String s, uint32_t& out) {
+  s.trim();
+  s.toLowerCase();
+  if (s.startsWith("#")) s = s.substring(1);
+  struct { const char* name; uint32_t c; } named[] = {
+      {"red", 0xFF0000},    {"green", 0x00FF00},   {"blue", 0x0000FF},
+      {"amber", 0xFF5A00},  {"orange", 0xFF5A00},  {"yellow", 0xFFC800},
+      {"purple", 0x8000FF}, {"magenta", 0xFF00FF}, {"pink", 0xFF3060},
+      {"cyan", 0x00FFFF},   {"white", 0xFFFFFF},
+  };
+  for (auto& n : named) {
+    if (s == n.name) { out = n.c; return true; }
+  }
+  if (s.length() != 6) return false;
+  char* end;
+  out = strtoul(s.c_str(), &end, 16);
+  return end == s.c_str() + 6;
+}
+
+// The HD44780 only renders ASCII sensibly
+String asciiOnly(const String& s) {
+  String out;
+  for (unsigned i = 0; i < s.length(); i++) {
+    char c = s[i];
+    out += (c >= 32 && c <= 126) ? c : ' ';
+  }
+  return out;
+}
+
+void handleShow() {
+  String text = server.hasArg("text") ? server.arg("text")
+                                      : server.arg("message");
+  text = asciiOnly(text).substring(0, 32);  // 2 LCD lines
+  if (text.length() == 0) {
+    server.send(400, "text/plain", "need ?text=... (up to 32 chars)\n");
+    return;
+  }
+
+  long ttl = server.arg("ttl").toInt();
+  if (ttl <= 0) ttl = 60;
+  if (ttl > 604800L) ttl = 604800L;  // 7 days; keeps millis math wrap-safe
+
+  String colorArg = server.hasArg("colour") ? server.arg("colour")
+                                            : server.arg("color");
+  uint32_t color = 0xFFFFFF;
+  if (colorArg.length() > 0 && !parseColor(colorArg, color)) {
+    server.send(400, "text/plain",
+                "bad colour: RRGGBB hex or a name like red/green/amber\n");
+    return;
+  }
+
+  overrideText = text;
+  overrideColor = color;
+  overrideUntil = millis() + (uint32_t)ttl * 1000;
+
+  char resp[64];
+  snprintf(resp, sizeof(resp), "ok: showing for %lds in #%06X\n", ttl,
+           (unsigned)color);
+  server.send(200, "text/plain", resp);
+  Serial.printf("HTTP show: \"%s\" ttl=%lds colour=#%06X\n", text.c_str(),
+                ttl, (unsigned)color);
+}
+
+void handleClear() {
+  overrideText = "";
+  overrideUntil = 0;
+  server.send(200, "text/plain", "ok: cleared\n");
+}
+
+void handleRoot() {
+  time_t t = time(nullptr);
+  tm now;
+  localtime_r(&t, &now);
+  String t12 = clock12(now.tm_hour, now.tm_min) +
+               (now.tm_hour < 12 ? "am" : "pm");
+  char body[256];
+  snprintf(body, sizeof(body),
+           "esp-tou\nband: %s\ntime: %s\noverride: %s\n\n"
+           "GET /show?text=hi&ttl=60&colour=amber (name or RRGGBB hex)\n"
+           "GET /clear\n",
+           timeIsSet() ? BAND_NAME[bandAt(now.tm_hour * 60 + now.tm_min)]
+                       : "unknown (no time sync yet)",
+           t12.c_str(), overrideActive() ? overrideText.c_str() : "none");
+  server.send(200, "text/plain", body);
+}
+
+// Message on the LCD, one LED chasing around the bar per second
+void renderOverride() {
+  lcdLine(0, overrideText.substring(0, 16));
+  lcdLine(1, overrideText.length() > 16 ? overrideText.substring(16)
+                                        : String(""));
+  setBacklight(true);  // a message is worth waking the screen for
+
+  static uint32_t lastStep = 0;
+  static int pos = 0;
+  if (millis() - lastStep < 1000) return;
+  lastStep = millis();
+
+  time_t t = time(nullptr);
+  tm now;
+  localtime_r(&t, &now);
+  strip.setBrightness(inNightDim(now.tm_hour * 60 + now.tm_min)
+                          ? NIGHT_BRIGHTNESS : DAY_BRIGHTNESS);
+  strip.clear();
+  strip.setPixelColor(pos, overrideColor);
+  strip.show();
+  pos = (pos + 1) % PIXEL_COUNT;
+}
+
+// mDNS can only start once WiFi is up, so retry from loop()
+void ensureMdns() {
+  static bool started = false;
+  if (started || WiFi.status() != WL_CONNECTED) return;
+  started = MDNS.begin("esp-tou");
+  if (started) MDNS.addService("http", "tcp", 80);
+}
+
+// ---------------- Setup / loop ----------------
 
 void setup() {
   Serial.begin(115200);
@@ -245,35 +385,55 @@ void setup() {
   // NTP with NZ timezone; SNTP keeps re-syncing in the background
   configTzTime(TZ_INFO, "nz.pool.ntp.org", "pool.ntp.org",
                "time.cloudflare.com");
+
+  server.on("/", handleRoot);
+  server.on("/show", handleShow);
+  server.on("/clear", handleClear);
+  server.begin();
 }
 
 void loop() {
+  server.handleClient();
   ensureLcd();
+  ensureMdns();
+
   if (!timeIsSet()) {
-    showStatus("esp-tou",
-               WiFi.status() == WL_CONNECTED ? "Syncing time..."
-                                             : "WiFi: " WIFI_SSID);
-    // amber "waiting" dot so the device visibly isn't dead
-    strip.clear();
-    strip.setPixelColor(0, strip.Color(255, 90, 0));
-    strip.show();
-    delay(500);
+    static uint32_t lastBeat = 0;
+    if (millis() - lastBeat >= 500) {
+      lastBeat = millis();
+      showStatus("esp-tou",
+                 WiFi.status() == WL_CONNECTED ? "Syncing time..."
+                                               : "WiFi: " WIFI_SSID);
+      // amber "waiting" dot so the device visibly isn't dead
+      strip.clear();
+      strip.setPixelColor(0, strip.Color(255, 90, 0));
+      strip.show();
+    }
+    delay(2);
     return;
   }
 
-  time_t t = time(nullptr);
-  tm now;
-  localtime_r(&t, &now);
-  render(now);
+  if (overrideActive()) {
+    renderOverride();
+  } else {
+    static uint32_t lastRender = 0;
+    if (millis() - lastRender >= 1000) {
+      lastRender = millis();
+      time_t t = time(nullptr);
+      tm now;
+      localtime_r(&t, &now);
+      render(now);
 
-  static Band lastLogged = (Band)255;
-  Band band = bandAt(now.tm_hour * 60 + now.tm_min);
-  if (band != lastLogged) {
-    lastLogged = band;
-    Serial.printf("[%02d:%02d] band -> %s (WiFi %s, IP %s)\n", now.tm_hour,
-                  now.tm_min, BAND_NAME[band],
-                  WiFi.status() == WL_CONNECTED ? "up" : "down",
-                  WiFi.localIP().toString().c_str());
+      static Band lastLogged = (Band)255;
+      Band band = bandAt(now.tm_hour * 60 + now.tm_min);
+      if (band != lastLogged) {
+        lastLogged = band;
+        Serial.printf("[%02d:%02d] band -> %s (WiFi %s, IP %s)\n",
+                      now.tm_hour, now.tm_min, BAND_NAME[band],
+                      WiFi.status() == WL_CONNECTED ? "up" : "down",
+                      WiFi.localIP().toString().c_str());
+      }
+    }
   }
-  delay(1000);
+  delay(2);  // keep handleClient responsive between renders
 }

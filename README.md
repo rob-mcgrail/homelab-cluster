@@ -10,7 +10,8 @@ and then runs standalone — no server, no cloud.
 
 - **LCD line 1**: current band — `POWER VERY CHEAP` / `POWER IS CHEAP` /
   `POWER EXPENSIVE` (16-char limit rules out longer wording)
-- **LCD line 2**: clock and when the band ends — `14:32 ends 17:00`
+- **LCD line 2**: clock and when the band ends — `2:32 ends 5:00`
+  (12-hour, no am/pm)
 - **RGB bar**: band colour (green / amber / red); the number of lit LEDs
   drains as the band runs out. Dims automatically 9pm–7am.
 - **LCD backlight** is on during daylight only — sunrise/sunset are
@@ -83,6 +84,26 @@ arduino-cli upload --fqbn esp32:esp32:esp32:UploadSpeed=115200 -p /dev/cu.usbser
 ```
 
 Serial debug output at 115200 baud logs each band transition.
+
+## HTTP API
+
+Unauthenticated, LAN-only, port 80. The router's DHCP reservation locks
+the device to **http://192.168.1.47**; mDNS also answers at
+`http://esp-tou.local`.
+
+| Route    | Params | Effect |
+|----------|--------|--------|
+| `/`      | —      | plain-text status + usage |
+| `/show`  | `text` (≤32 ASCII chars), `ttl` (seconds, default 60, max 7 days), `colour` or `color` (name or `RRGGBB` hex, default white) | Takes over the LCD with the message and chases one LED per second around the bar in that colour until the TTL expires |
+| `/clear` | —      | Ends the override early |
+
+```sh
+curl "http://192.168.1.47/show?text=Build%20passed&ttl=120&colour=green"
+curl http://192.168.1.47/clear
+```
+
+Colour names: red, green, blue, amber/orange, yellow, purple, magenta,
+pink, cyan, white.
 
 ## Behaviour notes
 
