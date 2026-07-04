@@ -19,6 +19,7 @@
 constexpr int PIXEL_PIN   = 27;  // Freenove RGB module S pin
                                  // (not 16/17: WROVER uses those for PSRAM)
 constexpr int PIXEL_COUNT = 8;
+constexpr int PIXEL_OFFSET = 4;  // ring is mounted rotated half a turn
 constexpr int SDA_PIN     = 21;
 constexpr int SCL_PIN     = 22;
 
@@ -92,6 +93,12 @@ int minutesSinceBandStart(int minuteOfDay) {
     }
   }
   return 0;
+}
+
+// All pixel writes go through here so the ring's mounting rotation is
+// corrected in one place
+void setPixel(int i, uint32_t color) {
+  strip.setPixelColor((i + PIXEL_OFFSET) % PIXEL_COUNT, color);
 }
 
 uint32_t bandColor(Band b) {
@@ -236,7 +243,7 @@ void render(const tm& now) {
                                               : DAY_BRIGHTNESS);
   uint32_t c = bandColor(band);
   for (int i = 0; i < PIXEL_COUNT; i++) {
-    strip.setPixelColor(i, i < lit ? c : 0);
+    setPixel(i, i < lit ? c : 0);
   }
   strip.show();
 }
@@ -351,7 +358,7 @@ void renderOverride() {
   strip.setBrightness(inNightDim(now.tm_hour * 60 + now.tm_min)
                           ? NIGHT_BRIGHTNESS : DAY_BRIGHTNESS);
   strip.clear();
-  strip.setPixelColor(pos, overrideColor);
+  setPixel(pos, overrideColor);
   strip.show();
   pos = (pos + 1) % PIXEL_COUNT;
 }
@@ -406,7 +413,7 @@ void loop() {
                                                : "WiFi: " WIFI_SSID);
       // amber "waiting" dot so the device visibly isn't dead
       strip.clear();
-      strip.setPixelColor(0, strip.Color(255, 90, 0));
+      setPixel(0, strip.Color(255, 90, 0));
       strip.show();
     }
     delay(2);
