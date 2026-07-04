@@ -14,16 +14,16 @@ and then runs standalone — no server, no cloud.
   (12-hour, no am/pm)
 - **RGB bar**: band colour (green / amber / red); the number of lit LEDs
   drains as the band runs out. Dims automatically 9pm–7am.
-- **LCD backlight** is on during daylight only — sunrise/sunset are
-  computed on-device from `LATITUDE`/`LONGITUDE` in the sketch (default:
-  Wellington). The dimmed RGB bar still shows the band after dark. The
-  backpack offers no software dimming beyond on/off — for a permanently
-  subtler backlight, pull the jumper cap off the backpack's LED pins and
-  bridge them with a ~1kΩ resistor instead.
+- **LCD backlight** stays off, waking only while an API message is
+  showing. (The backpack offers no software dimming beyond on/off — if
+  you ever want a permanently subtler backlight, pull the jumper cap off
+  the backpack's LED pins and bridge them with a ~1kΩ resistor.)
 
 ## Tariff schedule
 
-Same every day (edit `SCHEDULE` in `esp-tou.ino` to change):
+Edit the `WEEKDAY` / `WEEKEND` tables in `esp-tou.ino` to change.
+
+Weekdays:
 
 | Window       | Band       | Colour |
 |--------------|------------|--------|
@@ -32,6 +32,13 @@ Same every day (edit `SCHEDULE` in `esp-tou.ino` to change):
 | 11am – 5pm   | Off-peak   | amber  |
 | 5pm – 9pm    | Peak       | red    |
 | 9pm – 11pm   | Off-peak   | amber  |
+
+Weekends (Sat/Sun) have no peak:
+
+| Window       | Band       | Colour |
+|--------------|------------|--------|
+| 11pm – 7am   | Very cheap | green  |
+| 7am – 11pm   | Off-peak   | amber  |
 
 ## Wiring
 

@@ -31,19 +31,16 @@ constexpr int NIGHT_DIM_UNTIL_MIN  = 7 * 60;   // 7am
 // New Zealand, with daylight saving rules baked in
 const char* TZ_INFO = "NZST-12NZDT,M9.5.0,M4.1.0/3";
 
-// Location, for computing sunrise/sunset (drives the LCD backlight)
-constexpr float LATITUDE  = -41.29;  // Wellington
-constexpr float LONGITUDE = 174.78;
-
 // ---------------- Tariff schedule ----------------
 enum Band : uint8_t { VERY_CHEAP, OFF_PEAK, PEAK };
 // Shown on LCD line 1 — must fit in 16 characters
 const char* BAND_NAME[] = {"Power very cheap", "Power is cheap", "Power expensive"};
 
-// Each window runs from startMin until the next entry's start (wraps at
-// midnight). Entries must be sorted by startMin. Same schedule every day.
+// Each window runs from startMin until the next entry's start (midnight
+// hands over to the next day's schedule). Entries must be sorted by
+// startMin and each table must start at 0.
 struct Window { uint16_t startMin; Band band; };
-const Window SCHEDULE[] = {
+const Window WEEKDAY[] = {
   {0 * 60,  VERY_CHEAP},  // 12am - 7am
   {7 * 60,  PEAK},        // 7am - 11am
   {11 * 60, OFF_PEAK},    // 11am - 5pm
@@ -51,8 +48,13 @@ const Window SCHEDULE[] = {
   {21 * 60, OFF_PEAK},    // 9pm - 11pm
   {23 * 60, VERY_CHEAP},  // 11pm - 12am
 };
-constexpr int N_WINDOWS = sizeof(SCHEDULE) / sizeof(SCHEDULE[0]);
-constexpr int MIN_PER_DAY = 24 * 60;
+const Window WEEKEND[] = {
+  {0 * 60,  VERY_CHEAP},  // 12am - 7am
+  {7 * 60,  OFF_PEAK},    // 7am - 11pm (no weekend peak)
+  {23 * 60, VERY_CHEAP},  // 11pm - 12am
+};
+constexpr int MIN_PER_DAY  = 24 * 60;
+constexpr int MIN_PER_WEEK = 7 * MIN_PER_DAY;
 
 LiquidCrystal_I2C* lcd = nullptr;
 Adafruit_NeoPixel strip(PIXEL_COUNT, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
@@ -67,30 +69,39 @@ bool overrideActive() {
   return overrideText.length() > 0 && (int32_t)(overrideUntil - millis()) > 0;
 }
 
-Band bandAt(int minuteOfDay) {
-  Band b = SCHEDULE[N_WINDOWS - 1].band;  // last window wraps past midnight
-  for (int i = 0; i < N_WINDOWS; i++) {
-    if (SCHEDULE[i].startMin <= minuteOfDay) b = SCHEDULE[i].band;
+Band bandAt(int wday, int minuteOfDay) {
+  bool weekend = (wday == 0 || wday == 6);  // tm_wday: 0=Sun, 6=Sat
+  const Window* sched = weekend ? WEEKEND : WEEKDAY;
+  const int n = weekend ? sizeof(WEEKEND) / sizeof(WEEKEND[0])
+                        : sizeof(WEEKDAY) / sizeof(WEEKDAY[0]);
+  Band b = sched[0].band;
+  for (int i = 0; i < n; i++) {
+    if (sched[i].startMin <= minuteOfDay) b = sched[i].band;
   }
   return b;
 }
 
-// Minutes until the band changes to something different (merges adjacent
-// windows of the same band, e.g. 11pm VERY_CHEAP flowing into 12am).
-int minutesUntilBandEnd(int minuteOfDay) {
-  Band now = bandAt(minuteOfDay);
-  for (int ahead = 1; ahead <= MIN_PER_DAY; ahead++) {
-    if (bandAt((minuteOfDay + ahead) % MIN_PER_DAY) != now) return ahead;
-  }
-  return MIN_PER_DAY;  // single-band schedule
+// weekMin: minutes since Sunday 00:00, so band scans can cross midnight
+// into a day with a different schedule
+Band bandAtWeek(int weekMin) {
+  weekMin = ((weekMin % MIN_PER_WEEK) + MIN_PER_WEEK) % MIN_PER_WEEK;
+  return bandAt(weekMin / MIN_PER_DAY, weekMin % MIN_PER_DAY);
 }
 
-int minutesSinceBandStart(int minuteOfDay) {
-  Band now = bandAt(minuteOfDay);
-  for (int back = 1; back <= MIN_PER_DAY; back++) {
-    if (bandAt((minuteOfDay - back + MIN_PER_DAY) % MIN_PER_DAY) != now) {
-      return back - 1;
-    }
+// Minutes until the band changes to something different (merges adjacent
+// windows of the same band, e.g. 11pm VERY_CHEAP flowing into 12am).
+int minutesUntilBandEnd(int weekMin) {
+  Band now = bandAtWeek(weekMin);
+  for (int ahead = 1; ahead <= MIN_PER_WEEK; ahead++) {
+    if (bandAtWeek(weekMin + ahead) != now) return ahead;
+  }
+  return MIN_PER_WEEK;  // single-band schedule
+}
+
+int minutesSinceBandStart(int weekMin) {
+  Band now = bandAtWeek(weekMin);
+  for (int back = 1; back <= MIN_PER_WEEK; back++) {
+    if (bandAtWeek(weekMin - back) != now) return back - 1;
   }
   return 0;
 }
@@ -111,50 +122,6 @@ uint32_t bandColor(Band b) {
 
 bool inNightDim(int minuteOfDay) {
   return minuteOfDay >= NIGHT_DIM_FROM_MIN || minuteOfDay < NIGHT_DIM_UNTIL_MIN;
-}
-
-// Today's sunrise/sunset as local minutes-of-day, from the standard solar
-// equations (declination + equation of time) — accurate to a minute or two.
-void sunTimes(const tm& now, int& riseMin, int& setMin) {
-  float N = now.tm_yday + 1;
-  float B = 2 * PI * (N - 81) / 364.0;
-  float eqTime = 9.87 * sin(2 * B) - 7.53 * cos(B) - 1.5 * sin(B);  // minutes
-  float decl = -23.44 * DEG_TO_RAD * cos(2 * PI / 365.0 * (N + 10));
-  float lat = LATITUDE * DEG_TO_RAD;
-  // -0.83 deg: sun's radius + atmospheric refraction at the horizon
-  float cosH = (sin(-0.83 * DEG_TO_RAD) - sin(lat) * sin(decl)) /
-               (cos(lat) * cos(decl));
-  cosH = constrain(cosH, -1.0f, 1.0f);
-  float halfDay = acos(cosH) * RAD_TO_DEG * 4;  // minutes
-
-  // UTC offset (incl. DST) via localtime vs gmtime of the same instant
-  time_t t = time(nullptr);
-  tm loc, utc;
-  localtime_r(&t, &loc);
-  gmtime_r(&t, &utc);
-  int offset = (loc.tm_hour - utc.tm_hour) * 60 + (loc.tm_min - utc.tm_min);
-  if (loc.tm_year != utc.tm_year || loc.tm_yday != utc.tm_yday) {
-    bool localAhead = (loc.tm_year > utc.tm_year) ||
-                      (loc.tm_year == utc.tm_year && loc.tm_yday > utc.tm_yday);
-    offset += localAhead ? 1440 : -1440;
-  }
-
-  float solarNoon = 720 - 4 * LONGITUDE - eqTime + offset;
-  riseMin = ((int)(solarNoon - halfDay) + 1440) % 1440;
-  setMin  = ((int)(solarNoon + halfDay) + 1440) % 1440;
-}
-
-bool isDark(const tm& now) {
-  static int cachedDay = -1;
-  static int riseMin = 0, setMin = 0;
-  if (now.tm_yday != cachedDay) {
-    cachedDay = now.tm_yday;
-    sunTimes(now, riseMin, setMin);
-    Serial.printf("sun: rise %02d:%02d, set %02d:%02d\n", riseMin / 60,
-                  riseMin % 60, setMin / 60, setMin % 60);
-  }
-  int m = now.tm_hour * 60 + now.tm_min;
-  return m < riseMin || m >= setMin;
 }
 
 // ---------------- LCD helpers ----------------
@@ -222,10 +189,11 @@ void showStatus(const String& l1, const String& l2) {
 
 void render(const tm& now) {
   int minuteOfDay = now.tm_hour * 60 + now.tm_min;
-  Band band = bandAt(minuteOfDay);
+  int weekMin = now.tm_wday * MIN_PER_DAY + minuteOfDay;
+  Band band = bandAt(now.tm_wday, minuteOfDay);
 
-  int remaining = minutesUntilBandEnd(minuteOfDay);
-  int elapsed   = minutesSinceBandStart(minuteOfDay);
+  int remaining = minutesUntilBandEnd(weekMin);
+  int elapsed   = minutesSinceBandStart(weekMin);
   int total     = remaining + elapsed;
   int endMin    = (minuteOfDay + remaining) % MIN_PER_DAY;
 
@@ -233,8 +201,8 @@ void render(const tm& now) {
   lcdLine(1, clock12(now.tm_hour, now.tm_min) + " ends " +
                  clock12(endMin / 60, endMin % 60));
 
-  // backlight only during daylight; the RGB bar carries the signal at night
-  setBacklight(!isDark(now));
+  // backlight stays off; it only wakes for API messages (renderOverride)
+  setBacklight(false);
 
   // RGB bar: drains as the band runs out
   int lit = (remaining * PIXEL_COUNT + total - 1) / total;  // ceil
@@ -334,7 +302,8 @@ void handleRoot() {
            "esp-tou\nband: %s\ntime: %s\noverride: %s\n\n"
            "GET /show?text=hi&ttl=60&colour=amber (name or RRGGBB hex)\n"
            "GET /clear\n",
-           timeIsSet() ? BAND_NAME[bandAt(now.tm_hour * 60 + now.tm_min)]
+           timeIsSet() ? BAND_NAME[bandAt(now.tm_wday,
+                                          now.tm_hour * 60 + now.tm_min)]
                        : "unknown (no time sync yet)",
            t12.c_str(), overrideActive() ? overrideText.c_str() : "none");
   server.send(200, "text/plain", body);
@@ -432,7 +401,7 @@ void loop() {
       render(now);
 
       static Band lastLogged = (Band)255;
-      Band band = bandAt(now.tm_hour * 60 + now.tm_min);
+      Band band = bandAt(now.tm_wday, now.tm_hour * 60 + now.tm_min);
       if (band != lastLogged) {
         lastLogged = band;
         Serial.printf("[%02d:%02d] band -> %s (WiFi %s, IP %s)\n",
