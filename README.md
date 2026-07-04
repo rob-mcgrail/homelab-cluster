@@ -92,6 +92,18 @@ arduino-cli upload --fqbn esp32:esp32:esp32:UploadSpeed=115200 -p /dev/cu.usbser
 
 Serial debug output at 115200 baud logs each band transition.
 
+### OTA (flashing over WiFi)
+
+The board is glued into its case, so after the initial wired flash all
+updates go over WiFi (password `OTA_PASS` from `secrets.h`, port 3232):
+
+```sh
+arduino-cli compile --fqbn esp32:esp32:esp32 .
+python3 ~/Library/Arduino15/packages/esp32/hardware/esp32/*/tools/espota.py \
+  -i 192.168.1.47 -p 3232 --auth="$(sed -n 's/.*OTA_PASS *"\(.*\)"/\1/p' secrets.h)" \
+  -f build/esp32.esp32.esp32/esp-tou.ino.bin
+```
+
 ## HTTP API
 
 Unauthenticated, LAN-only, port 80. The router's DHCP reservation locks

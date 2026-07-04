@@ -9,6 +9,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
+#include <ArduinoOTA.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_NeoPixel.h>
@@ -332,12 +333,26 @@ void renderOverride() {
   pos = (pos + 1) % PIXEL_COUNT;
 }
 
-// mDNS can only start once WiFi is up, so retry from loop()
+// mDNS and OTA can only start once WiFi is up, so retry from loop().
+// OTA means the board never needs a USB data cable again (it's glued
+// into its case) — flash with espota.py against port 3232.
 void ensureMdns() {
   static bool started = false;
   if (started || WiFi.status() != WL_CONNECTED) return;
   started = MDNS.begin("esp-tou");
-  if (started) MDNS.addService("http", "tcp", 80);
+  if (!started) return;
+  MDNS.addService("http", "tcp", 80);
+
+  ArduinoOTA.setHostname("esp-tou");
+  ArduinoOTA.setPassword(OTA_PASS);
+  ArduinoOTA.setMdnsEnabled(false);  // we already run mDNS ourselves
+  ArduinoOTA.onStart([]() {
+    showStatus("Updating...", "");
+    strip.clear();
+    strip.show();
+  });
+  ArduinoOTA.begin();
+  MDNS.enableArduino(3232, true);
 }
 
 // ---------------- Setup / loop ----------------
@@ -370,6 +385,7 @@ void setup() {
 
 void loop() {
   server.handleClient();
+  ArduinoOTA.handle();
   ensureLcd();
   ensureMdns();
 
