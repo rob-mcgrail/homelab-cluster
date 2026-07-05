@@ -14,10 +14,12 @@ and then runs standalone — no server, no cloud.
   (12-hour, no am/pm)
 - **RGB bar**: band colour (green / amber / red); the number of lit LEDs
   drains as the band runs out. Dims automatically 9pm–7am.
-- **LCD backlight** stays off, waking only while an API message is
-  showing. (The backpack offers no software dimming beyond on/off — if
-  you ever want a permanently subtler backlight, pull the jumper cap off
-  the backpack's LED pins and bridge them with a ~1kΩ resistor.)
+- **LCD backlight**: in the default `auto` mode it stays off, waking only
+  while an API message is showing; `GET /backlight?mode=always` keeps it
+  lit instead (setting persists across power cycles). (The backpack offers
+  no software dimming beyond on/off — if you ever want a permanently
+  subtler backlight, pull the jumper cap off the backpack's LED pins and
+  bridge them with a ~1kΩ resistor.)
 
 ## Tariff schedule
 
@@ -66,43 +68,62 @@ is for daisy-chaining more modules.
 Powering the module from 3V3 keeps the data signal level in spec; at the
 brightness this sketch uses, 8 LEDs are well within the regulator's budget.
 
-## Build & flash
-
-Requires `arduino-cli` with the `esp32:esp32` core, plus libraries
-`LiquidCrystal I2C` and `Adafruit NeoPixel`:
+## Required packages (one-time setup)
 
 ```sh
+brew install arduino-cli
 arduino-cli core install esp32:esp32
 arduino-cli lib install "LiquidCrystal I2C" "Adafruit NeoPixel"
 ```
 
-WiFi credentials live in a gitignored header:
+`python3` is also needed for OTA pushes; `espota.py` and `esptool` ship
+inside the esp32 core (under `~/Library/Arduino15/packages/esp32/`).
+
+WiFi credentials and the OTA password live in a gitignored header:
 
 ```sh
-cp secrets.h.example secrets.h   # then fill in SSID + password
+cp secrets.h.example secrets.h   # then fill in SSID, password, OTA pass
 ```
 
-Compile and upload (CH340 boards can be flaky at high baud — this uses
-115200):
+## Deploying a release (OTA)
+
+The board is glued into its case — all updates go over WiFi. From this
+directory:
 
 ```sh
-arduino-cli compile --fqbn esp32:esp32:esp32 .
-arduino-cli upload --fqbn esp32:esp32:esp32:UploadSpeed=115200 -p /dev/cu.usbserial-1110 .
-```
+# 1. bump FW_VERSION at the top of esp-tou.ino, then:
+arduino-cli compile --fqbn esp32:esp32:esp32 --export-binaries .
 
-Serial debug output at 115200 baud logs each band transition.
-
-### OTA (flashing over WiFi)
-
-The board is glued into its case, so after the initial wired flash all
-updates go over WiFi (password `OTA_PASS` from `secrets.h`, port 3232):
-
-```sh
-arduino-cli compile --fqbn esp32:esp32:esp32 .
+# 2. push to the device (port 3232):
 python3 ~/Library/Arduino15/packages/esp32/hardware/esp32/*/tools/espota.py \
   -i 192.168.1.47 -p 3232 --auth="$(sed -n 's/.*OTA_PASS *"\(.*\)"/\1/p' secrets.h)" \
   -f build/esp32.esp32.esp32/esp-tou.ino.bin
+
+# 3. verify the new version is running:
+curl http://192.168.1.47/
 ```
+
+Notes:
+
+- espota works by the device connecting **back** to the sender, so the
+  macOS firewall must allow Python to accept incoming connections.
+  Alternatively run espota from any Linux box on the LAN — only the
+  `.bin` and `espota.py` need copying over.
+- A transfer that dies mid-stream (weak WiFi) is harmless: the device
+  keeps running its current firmware. Just retry.
+
+### USB fallback (first-ever flash or recovery)
+
+If the firmware is bricked, OTA can't help — flash over USB with a
+**data-capable** micro-USB cable (charge-only cables enumerate nothing):
+
+```sh
+arduino-cli compile --fqbn esp32:esp32:esp32 .
+arduino-cli upload --fqbn esp32:esp32:esp32:UploadSpeed=115200 -p /dev/cu.usbserial-* .
+```
+
+Upload speed must stay at 115200 — the CH340 fails at higher rates.
+Serial debug output at 115200 baud logs each band transition.
 
 ## HTTP API
 
@@ -115,6 +136,7 @@ the device to **http://192.168.1.47**; mDNS also answers at
 | `/`      | —      | plain-text status + usage |
 | `/show`  | `text` (≤32 ASCII chars), `ttl` (seconds, default 60, max 7 days), `colour` or `color` (name or `RRGGBB` hex, default white) | Takes over the LCD with the message and chases one LED per second around the bar in that colour until the TTL expires |
 | `/clear` | —      | Ends the override early |
+| `/backlight` | `mode` = `always` or `auto` (omit to just read the current mode) | `always` keeps the LCD backlit; `auto` lights it only while a message shows. Persists across power cycles |
 
 ```sh
 curl "http://192.168.1.47/show?text=Build%20passed&ttl=120&colour=green"

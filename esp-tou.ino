@@ -6,13 +6,14 @@
 //   LCD line 2: clock + band end   e.g. "14:32 ends 17:00"
 //   RGB bar: band colour, lit length = fraction of the band remaining.
 
-#define FW_VERSION "2"  // bump on release; shown by GET / to verify OTA
+#define FW_VERSION "3"  // bump on release; shown by GET / to verify OTA
 
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 #include <Wire.h>
+#include <Preferences.h>
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_NeoPixel.h>
 #include <time.h>
@@ -62,6 +63,11 @@ constexpr int MIN_PER_WEEK = 7 * MIN_PER_DAY;
 LiquidCrystal_I2C* lcd = nullptr;
 Adafruit_NeoPixel strip(PIXEL_COUNT, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 WebServer server(80);
+Preferences prefs;
+
+// Backlight mode (set via GET /backlight, persisted in NVS):
+// false = auto (off unless an API message is showing), true = always on
+bool backlightAlways = false;
 
 // Message override state (set via GET /show)
 String overrideText;
@@ -204,8 +210,8 @@ void render(const tm& now) {
   lcdLine(1, clock12(now.tm_hour, now.tm_min) + " ends " +
                  clock12(endMin / 60, endMin % 60));
 
-  // backlight stays off; it only wakes for API messages (renderOverride)
-  setBacklight(false);
+  // auto mode: backlight only wakes for API messages (renderOverride)
+  setBacklight(backlightAlways);
 
   // RGB bar: drains as the band runs out
   int lit = (remaining * PIXEL_COUNT + total - 1) / total;  // ceil
@@ -294,6 +300,21 @@ void handleClear() {
   server.send(200, "text/plain", "ok: cleared\n");
 }
 
+void handleBacklight() {
+  String mode = server.arg("mode");
+  if (mode == "always" || mode == "on") {
+    backlightAlways = true;
+  } else if (mode == "auto" || mode == "off") {
+    backlightAlways = false;
+  } else if (mode.length() > 0) {
+    server.send(400, "text/plain", "mode must be 'always' or 'auto'\n");
+    return;
+  }
+  if (mode.length() > 0) prefs.putBool("bl_always", backlightAlways);
+  server.send(200, "text/plain", String("backlight: ") +
+                                     (backlightAlways ? "always\n" : "auto\n"));
+}
+
 void handleRoot() {
   time_t t = time(nullptr);
   tm now;
@@ -304,6 +325,7 @@ void handleRoot() {
   snprintf(body, sizeof(body),
            "esp-tou v" FW_VERSION "\nband: %s\ntime: %s\noverride: %s\n\n"
            "GET /show?text=hi&ttl=60&colour=amber (name or RRGGBB hex)\n"
+           "GET /backlight?mode=always|auto\n"
            "GET /clear\n",
            timeIsSet() ? BAND_NAME[bandAt(now.tm_wday,
                                           now.tm_hour * 60 + now.tm_min)]
@@ -362,6 +384,9 @@ void ensureMdns() {
 void setup() {
   Serial.begin(115200);
 
+  prefs.begin("esp-tou", false);
+  backlightAlways = prefs.getBool("bl_always", false);
+
   strip.begin();
   strip.setBrightness(DAY_BRIGHTNESS);
   strip.clear();
@@ -382,6 +407,7 @@ void setup() {
   server.on("/", handleRoot);
   server.on("/show", handleShow);
   server.on("/clear", handleClear);
+  server.on("/backlight", handleBacklight);
   server.begin();
 }
 
