@@ -6,6 +6,8 @@
 //   LCD line 2: clock + band end   e.g. "14:32 ends 17:00"
 //   RGB bar: band colour, lit length = fraction of the band remaining.
 
+#define FW_VERSION "2"  // bump on release; shown by GET / to verify OTA
+
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
@@ -300,7 +302,7 @@ void handleRoot() {
                (now.tm_hour < 12 ? "am" : "pm");
   char body[256];
   snprintf(body, sizeof(body),
-           "esp-tou\nband: %s\ntime: %s\noverride: %s\n\n"
+           "esp-tou v" FW_VERSION "\nband: %s\ntime: %s\noverride: %s\n\n"
            "GET /show?text=hi&ttl=60&colour=amber (name or RRGGBB hex)\n"
            "GET /clear\n",
            timeIsSet() ? BAND_NAME[bandAt(now.tm_wday,
