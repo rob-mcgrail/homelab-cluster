@@ -6,7 +6,7 @@
 //   LCD line 2: clock + band end   e.g. "14:32 ends 17:00"
 //   RGB bar: band colour, lit length = fraction of the band remaining.
 
-#define FW_VERSION "4"  // bump on release; shown by GET / to verify OTA
+#define FW_VERSION "5"  // bump on release; shown by GET / to verify OTA
 
 #include <WiFi.h>
 #include <WebServer.h>
@@ -73,6 +73,8 @@ bool backlightAlways = false;
 String overrideText;
 uint32_t overrideColor = 0xFFFFFF;  // 0xRRGGBB
 uint32_t overrideUntil = 0;         // millis() deadline
+int overridePage = 0;               // messages >32 chars page every 1.5s
+uint32_t overridePageAt = 0;
 
 bool overrideActive() {
   return overrideText.length() > 0 && (int32_t)(overrideUntil - millis()) > 0;
@@ -263,9 +265,9 @@ String asciiOnly(const String& s) {
 void handleShow() {
   String text = server.hasArg("text") ? server.arg("text")
                                       : server.arg("message");
-  text = asciiOnly(text).substring(0, 32);  // 2 LCD lines
+  text = asciiOnly(text).substring(0, 64);  // paged across 2-line screens
   if (text.length() == 0) {
-    server.send(400, "text/plain", "need ?text=... (up to 32 chars)\n");
+    server.send(400, "text/plain", "need ?text=... (up to 64 chars)\n");
     return;
   }
 
@@ -285,6 +287,8 @@ void handleShow() {
   overrideText = text;
   overrideColor = color;
   overrideUntil = millis() + (uint32_t)ttl * 1000;
+  overridePage = 0;
+  overridePageAt = millis();
 
   char resp[64];
   snprintf(resp, sizeof(resp), "ok: showing for %lds in #%06X\n", ttl,
@@ -334,31 +338,48 @@ void handleRoot() {
   server.send(200, "text/plain", body);
 }
 
-// Split text across the two 16-char LCD lines, preferring a break at a
-// space — but only one that still lets the remainder fit on line 2
-void splitMessage(const String& text, String& l1, String& l2) {
-  if (text.length() <= 16) {
-    l1 = text;
-    l2 = "";
-    return;
+// Word-wrap text into 16-char LCD lines: words pack greedily, only a
+// word longer than a whole line gets hard-split. Returns the line count.
+int wrapLines(const String& text, String lines[], int maxLines) {
+  int n = 0;
+  String word, line;
+  for (unsigned i = 0; i <= text.length() && n < maxLines; i++) {
+    char c = i < text.length() ? text[i] : ' ';
+    if (c != ' ') {
+      word += c;
+      continue;
+    }
+    if (word.length() == 0) continue;
+    while (word.length() > 16 && n < maxLines) {  // unbreakable monster word
+      if (line.length() > 0) { lines[n++] = line; line = ""; }
+      if (n >= maxLines) return n;
+      lines[n++] = word.substring(0, 16);
+      word = word.substring(16);
+    }
+    if (n >= maxLines) return n;
+    if (line.length() == 0) line = word;
+    else if (line.length() + 1 + word.length() <= 16) line += ' ' + word;
+    else { lines[n++] = line; line = word; }
+    word = "";
   }
-  int minSplit = (int)text.length() - 17;  // line 2 must hold the rest
-  int sp = text.lastIndexOf(' ', 16);
-  if (sp >= 0 && sp >= minSplit) {
-    l1 = text.substring(0, sp);
-    l2 = text.substring(sp + 1);
-  } else {
-    l1 = text.substring(0, 16);
-    l2 = text.substring(16);
-  }
+  if (line.length() > 0 && n < maxLines) lines[n++] = line;
+  return n;
 }
 
-// Message on the LCD, one LED chasing around the bar per second
+// Message on the LCD (paged in 2-line screens for long texts, flipping
+// every 1.5s), one LED chasing around the bar per second
 void renderOverride() {
-  String l1, l2;
-  splitMessage(overrideText, l1, l2);
-  lcdLine(0, l1);
-  lcdLine(1, l2);
+  String lines[8];
+  int n = wrapLines(overrideText, lines, 8);
+  int pages = (n + 1) / 2;
+  if (pages > 1 && millis() - overridePageAt >= 1500) {
+    overridePageAt = millis();
+    overridePage++;
+  }
+  overridePage %= pages > 0 ? pages : 1;
+  lcdLine(0, n > 0 ? lines[overridePage * 2] : String(""));
+  lcdLine(1, overridePage * 2 + 1 < n ? lines[overridePage * 2 + 1]
+                                      : String(""));
   setBacklight(true);  // a message is worth waking the screen for
 
   static uint32_t lastStep = 0;
