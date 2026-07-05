@@ -48,7 +48,7 @@ if (PUSH_ENABLED) webpush.setVapidDetails(VAPID_CONTACT, VAPID_PUBLIC, VAPID_PRI
 // LAN egress to it. If LED_URL is unset, every LED path no-ops.
 const LED_URL = (process.env.LED_URL || "").replace(/\/+$/, "");
 const LED_ENABLED = !!LED_URL;
-const LED_MAX_CHARS = Number(process.env.LED_MAX_CHARS || 40);
+const LED_MAX_CHARS = Number(process.env.LED_MAX_CHARS || 64);
 const LED_DEFAULT_TTL = 10;
 // Semantic-but-creative palette (RRGGBB, no #). Shared by the event
 // wiring below and mirrored in the panel's swatches (led.js).

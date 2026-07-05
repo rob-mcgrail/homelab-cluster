@@ -105,7 +105,7 @@ function mount() {
       <div class="critter-zone"><div class="ledfish critter">🐠</div></div>
       <div class="section-title-led">LED DISPLAY</div>
       <div class="led-form">
-        <input class="led-text-input" type="text" maxlength="40"
+        <input class="led-text-input" type="text" maxlength="64"
                placeholder="Message (keep it brief)" autocomplete="off" />
         <div class="led-swatches"></div>
         <div class="led-row">
