@@ -280,6 +280,11 @@ mirrored in the panel swatches):
   Webhook connection (created via their `/api/v3/notification`, name "LED
   display"). Parses their native movie/series payload → green title. LED-only.
 
+The **amber "request incoming"** LED fires from *both* ways a request enters the
+bot queue: the manual prompt box (`/api/prompt`) and the recs panel's "send to
+movie bot" button (`/api/recs/:id/send-to-moviebot`) — the latter is the common
+path. Both are LED-only (no phone push).
+
 **Server-side health monitor:** a 60s tick in `server.ts` fires a red alert when
 disk ≥90%, 1-min load ≥3×cores, or a container is crash-looping — each with a
 30-min re-alert cooldown, cleared when the condition resolves.

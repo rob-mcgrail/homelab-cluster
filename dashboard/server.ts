@@ -1268,6 +1268,10 @@ const server = Bun.serve({
             promptId: id,
             at: Math.floor(Date.now() / 1000),
           });
+          // Announce on the LED (amber) — same as the manual prompt box.
+          // This is the path the recs panel's "send to movie bot" button
+          // uses, so it's the common way a request actually enters the bot.
+          showOnLed(`Request: ${rec.title}${rec.year ? ` (${rec.year})` : ""}`, LED.request).catch(() => {});
           return Response.json({ ok: true, promptId: id });
         } catch {
           return new Response("send failed", { status: 500 });
