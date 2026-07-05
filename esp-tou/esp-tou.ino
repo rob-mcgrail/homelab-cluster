@@ -6,7 +6,7 @@
 //   LCD line 2: clock + band end   e.g. "14:32 ends 17:00"
 //   RGB bar: band colour, lit length = fraction of the band remaining.
 
-#define FW_VERSION "5"  // bump on release; shown by GET / to verify OTA
+#define FW_VERSION "6"  // bump on release; shown by GET / to verify OTA
 
 #include <WiFi.h>
 #include <WebServer.h>
@@ -73,7 +73,7 @@ bool backlightAlways = false;
 String overrideText;
 uint32_t overrideColor = 0xFFFFFF;  // 0xRRGGBB
 uint32_t overrideUntil = 0;         // millis() deadline
-int overridePage = 0;               // messages >32 chars page every 1.5s
+int overridePage = 0;               // messages >32 chars page every 2s
 uint32_t overridePageAt = 0;
 
 bool overrideActive() {
@@ -367,12 +367,12 @@ int wrapLines(const String& text, String lines[], int maxLines) {
 }
 
 // Message on the LCD (paged in 2-line screens for long texts, flipping
-// every 1.5s), one LED chasing around the bar per second
+// every 2s), one LED chasing around the bar per second
 void renderOverride() {
   String lines[8];
   int n = wrapLines(overrideText, lines, 8);
   int pages = (n + 1) / 2;
-  if (pages > 1 && millis() - overridePageAt >= 1500) {
+  if (pages > 1 && millis() - overridePageAt >= 2000) {
     overridePageAt = millis();
     overridePage++;
   }
