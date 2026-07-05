@@ -889,6 +889,29 @@ const server = Bun.serve({
       }
     }
 
+    // LED backlight mode — GET reads, POST {mode:"always"|"auto"} sets.
+    // Relays to the device's /backlight endpoint (plain text
+    // "backlight: always|auto"), folded into JSON for the panel's switch.
+    if (url.pathname === "/api/led-backlight" && (req.method === "GET" || req.method === "POST")) {
+      if (!LED_ENABLED) return new Response("LED not configured", { status: 503 });
+      try {
+        let q = "";
+        if (req.method === "POST") {
+          const body: any = await req.json();
+          if (body?.mode !== "always" && body?.mode !== "auto") {
+            return Response.json({ error: "mode must be 'always' or 'auto'" }, { status: 400 });
+          }
+          q = `?mode=${body.mode}`;
+        }
+        const r = await fetch(`${LED_URL}/backlight${q}`, { signal: AbortSignal.timeout(5000) });
+        if (!r.ok) return Response.json({ error: "device unreachable" }, { status: 502 });
+        const mode = (await r.text()).includes("always") ? "always" : "auto";
+        return Response.json({ ok: true, mode });
+      } catch (e: any) {
+        return Response.json({ error: e?.message || "device unreachable" }, { status: 502 });
+      }
+    }
+
     // Webhook receiver. HA (or any local script) POSTs here when an
     // event worth notifying about happens. Body: {title, body?, url?,
     // icon?, tag?}. Auth is a shared token in the Authorization header

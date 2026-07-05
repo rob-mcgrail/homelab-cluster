@@ -6,7 +6,7 @@
 //   LCD line 2: clock + band end   e.g. "14:32 ends 17:00"
 //   RGB bar: band colour, lit length = fraction of the band remaining.
 
-#define FW_VERSION "3"  // bump on release; shown by GET / to verify OTA
+#define FW_VERSION "4"  // bump on release; shown by GET / to verify OTA
 
 #include <WiFi.h>
 #include <WebServer.h>
@@ -334,11 +334,31 @@ void handleRoot() {
   server.send(200, "text/plain", body);
 }
 
+// Split text across the two 16-char LCD lines, preferring a break at a
+// space — but only one that still lets the remainder fit on line 2
+void splitMessage(const String& text, String& l1, String& l2) {
+  if (text.length() <= 16) {
+    l1 = text;
+    l2 = "";
+    return;
+  }
+  int minSplit = (int)text.length() - 17;  // line 2 must hold the rest
+  int sp = text.lastIndexOf(' ', 16);
+  if (sp >= 0 && sp >= minSplit) {
+    l1 = text.substring(0, sp);
+    l2 = text.substring(sp + 1);
+  } else {
+    l1 = text.substring(0, 16);
+    l2 = text.substring(16);
+  }
+}
+
 // Message on the LCD, one LED chasing around the bar per second
 void renderOverride() {
-  lcdLine(0, overrideText.substring(0, 16));
-  lcdLine(1, overrideText.length() > 16 ? overrideText.substring(16)
-                                        : String(""));
+  String l1, l2;
+  splitMessage(overrideText, l1, l2);
+  lcdLine(0, l1);
+  lcdLine(1, l2);
   setBacklight(true);  // a message is worth waking the screen for
 
   static uint32_t lastStep = 0;

@@ -75,3 +75,24 @@
 .led-status { font-size: 0.8rem; color: #8aa0b5; min-height: 1rem; }
 .led-status.ok   { color: #86efac; }
 .led-status.fail { color: #fca5a5; }
+
+/* Backlight mode switch — the LCD's backlight, not the RGB ring */
+.led-backlight {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 0.75rem; border-top: 1px solid #16202c;
+  font-size: 0.8rem; color: #8aa0b5; letter-spacing: 0.03em;
+  cursor: pointer; user-select: none;
+}
+.led-backlight-input { position: absolute; opacity: 0; pointer-events: none; }
+.led-toggle {
+  width: 40px; height: 22px; border-radius: 11px; background: #22303f;
+  position: relative; flex-shrink: 0; transition: background 0.15s ease;
+}
+.led-toggle::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px; border-radius: 50%; background: #8aa0b5;
+  transition: left 0.15s ease, background 0.15s ease;
+}
+.led-backlight-input:checked ~ .led-toggle { background: #1e9ad6; }
+.led-backlight-input:checked ~ .led-toggle::after { left: 21px; background: #ffffff; }
+.led-backlight-input:disabled ~ .led-toggle { opacity: 0.5; cursor: default; }

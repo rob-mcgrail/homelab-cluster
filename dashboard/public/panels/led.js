@@ -5,7 +5,7 @@ import { PANELS as DOTS } from '../config.js';
 // work when the dashboard is opened remotely over the CF tunnel — the
 // browser never has to reach 192.168.x directly.
 
-let root, textInput, ttlInput, btn, statusEl, colourEl, swatchWrap;
+let root, textInput, ttlInput, btn, statusEl, colourEl, swatchWrap, backlightInput;
 let colour = '00e676';
 
 // Mirrors the semantic palette in server.ts (LED = {...}). Purely for the
@@ -61,6 +61,41 @@ async function send() {
   }
 }
 
+// The device remembers its backlight mode across power cycles, so the
+// switch loads the real state before enabling itself. On failure it just
+// stays disabled — same "device unreachable" posture as send().
+async function loadBacklight() {
+  try {
+    const res = await fetch('/api/led-backlight');
+    if (!res.ok) throw new Error();
+    const { mode } = await res.json();
+    backlightInput.checked = mode === 'always';
+    backlightInput.disabled = false;
+  } catch { /* leave the switch disabled */ }
+}
+
+async function setBacklightMode() {
+  const mode = backlightInput.checked ? 'always' : 'auto';
+  backlightInput.disabled = true;
+  try {
+    const res = await fetch('/api/led-backlight', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
+    if (!res.ok) throw new Error();
+    statusEl.className = 'led-status ok';
+    statusEl.textContent = `Backlight ${mode}`;
+  } catch {
+    backlightInput.checked = !backlightInput.checked; // revert
+    statusEl.className = 'led-status fail';
+    statusEl.textContent = 'Backlight change failed';
+  } finally {
+    backlightInput.disabled = false;
+    setTimeout(() => { statusEl.className = 'led-status'; statusEl.textContent = ''; }, 4000);
+  }
+}
+
 function mount() {
   root = document.createElement('div');
   root.className = 'panel panel-led scrollable';
@@ -83,6 +118,11 @@ function mount() {
         </div>
         <button class="led-send-btn">SHOW</button>
         <div class="led-status"></div>
+        <label class="led-backlight">
+          <span>Backlight always on</span>
+          <input class="led-backlight-input" type="checkbox" disabled />
+          <span class="led-toggle"></span>
+        </label>
       </div>
       <div class="dots">${dots()}</div>
     </div>
@@ -103,6 +143,10 @@ function mount() {
   colourEl.addEventListener('input', () => setColour(colourEl.value));
   textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
   btn.addEventListener('click', send);
+
+  backlightInput = root.querySelector('.led-backlight-input');
+  backlightInput.addEventListener('change', setBacklightMode);
+  loadBacklight();
 
   setColour('00e676');
   return root;
