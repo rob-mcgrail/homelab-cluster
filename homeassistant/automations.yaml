@@ -66,6 +66,9 @@
         title: "Someone or something is outside"
         url: "/#floodlights"
         tag: "cam-event"
+        # Phone push only — no LED. The floodlights already fire on this
+        # trigger, so echoing it on the LCD adds nothing.
+        led: false
     # Hold the automation "running" so any further triggers in this
     # window are dropped — both clips are already being captured.
     - delay: "00:00:45"

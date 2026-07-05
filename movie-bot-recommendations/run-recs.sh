@@ -48,7 +48,7 @@ if [ "$after" -gt "$before" ]; then
             -H "Content-Type: application/json" \
             -H "X-Push-Token: $PUSH_EVENT_TOKEN" \
             "http://localhost:8000/api/event" \
-            -d "{\"title\":\"Your recs are ready\",\"body\":\"$new new pick$( [ "$new" -gt 1 ] && echo s )\",\"url\":\"/#recs\",\"tag\":\"recs\"}" \
+            -d "{\"title\":\"Your recs are ready\",\"body\":\"$new new pick$( [ "$new" -gt 1 ] && echo s )\",\"url\":\"/#recs\",\"tag\":\"recs\",\"colour\":\"40e0d0\"}" \
             > /dev/null 2>&1 || true
     fi
 fi

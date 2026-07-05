@@ -134,7 +134,9 @@ rest_command:
       X-Push-Token: !secret push_event_token
     payload: >-
       {"title": {{ title|tojson }}, "body": {{ (body or '')|tojson }},
-       "url": {{ (url or '/')|tojson }}, "tag": {{ (tag or 'dashboard')|tojson }}}
+       "url": {{ (url or '/')|tojson }}, "tag": {{ (tag or 'dashboard')|tojson }},
+       "led": {{ (led if led is defined else true)|tojson }},
+       "colour": {{ (colour if colour is defined else '2e9bff')|tojson }}}
 
 automation: !include automations.yaml
 script: !include scripts.yaml

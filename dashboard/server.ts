@@ -38,6 +38,59 @@ const VAPID_CONTACT = process.env.VAPID_CONTACT || "mailto:admin@example.com";
 const PUSH_ENABLED = !!(VAPID_PUBLIC && VAPID_PRIVATE);
 if (PUSH_ENABLED) webpush.setVapidDetails(VAPID_CONTACT, VAPID_PUBLIC, VAPID_PRIVATE);
 
+// ---- LED matrix display -------------------------------------------
+// A LAN device (custom firmware) that shows a short message on a small
+// LCD: GET http://<ip>/show?text=<brief>&ttl=<seconds>&colour=<RRGGBB>.
+// The dashboard is the SINGLE place that knows the device URL and the
+// event→colour mapping — every source (manual panel, push mirror, arr
+// webhook, health monitor) funnels through showOnLed(). No other
+// container ever talks to the device directly, so nothing else needs
+// LAN egress to it. If LED_URL is unset, every LED path no-ops.
+const LED_URL = (process.env.LED_URL || "").replace(/\/+$/, "");
+const LED_ENABLED = !!LED_URL;
+const LED_MAX_CHARS = Number(process.env.LED_MAX_CHARS || 40);
+const LED_DEFAULT_TTL = 10;
+// Semantic-but-creative palette (RRGGBB, no #). Shared by the event
+// wiring below and mirrored in the panel's swatches (led.js).
+const LED = {
+  done:    "00e676", // green  — download imported
+  recs:    "40e0d0", // aquamarine — recommendations ready
+  request: "ff9e00", // amber  — request incoming to the bot
+  alert:   "ff2d55", // red    — system health
+  info:    "2e9bff", // blue   — generic push mirror
+  test:    "00e5ff", // cyan   — push test
+};
+
+// Coerce arbitrary input to a valid RRGGBB string, else fall back.
+function sanitizeColour(c: unknown, fallback = LED.info): string {
+  const s = String(c ?? "").replace(/^#/, "").trim();
+  return /^[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : fallback;
+}
+
+// Fire one message at the LED device. NEVER throws — a dead/slow device
+// must not break a push send or an API response. 5s timeout; text is
+// collapsed to a single line and hard-capped (small LCD).
+async function showOnLed(
+  text: string,
+  colour: string = LED.info,
+  ttl: number = LED_DEFAULT_TTL,
+): Promise<{ ok: boolean; skipped?: boolean; status?: number; error?: string }> {
+  if (!LED_ENABLED) return { ok: false, skipped: true };
+  const t = String(text || "").replace(/\s+/g, " ").trim().slice(0, LED_MAX_CHARS);
+  if (!t) return { ok: false, skipped: true };
+  const col = sanitizeColour(colour);
+  const sec = Math.min(Math.max(Math.round(Number(ttl) || LED_DEFAULT_TTL), 1), 300);
+  const u = `${LED_URL}/show?text=${encodeURIComponent(t)}&ttl=${sec}&colour=${col}`;
+  try {
+    const r = await fetch(u, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) console.error("LED show non-2xx:", r.status);
+    return { ok: r.ok, status: r.status };
+  } catch (e: any) {
+    console.error("LED show failed:", e?.message || e);
+    return { ok: false, error: e?.message || "fetch failed" };
+  }
+}
+
 // Subscriptions live in a single JSON file in the persisted data dir.
 // One entry per (browser, device) — the endpoint URL is unique enough
 // to dedupe. Pruned automatically on 410 Gone (subscription expired).
@@ -815,7 +868,25 @@ const server = Bun.serve({
         tag: "dashboard-test",
         url: "/",
       });
-      return Response.json(result);
+      const led = await showOnLed("Push test OK", LED.test);
+      return Response.json({ ...result, led });
+    }
+
+    // Manual LED message — the dashboard's LED panel POSTs here. No token:
+    // it's reachable only behind Caddy's LAN-only auth gate, same as every
+    // other browser-facing endpoint. Body: {text, colour?(RRGGBB), ttl?}.
+    if (req.method === "POST" && url.pathname === "/api/led") {
+      if (!LED_ENABLED) return new Response("LED not configured", { status: 503 });
+      try {
+        const body: any = await req.json();
+        const text = (body?.text ?? "").toString();
+        if (!text.trim()) return Response.json({ error: "text required" }, { status: 400 });
+        const res = await showOnLed(text, sanitizeColour(body?.colour, "ffffff"), body?.ttl ?? LED_DEFAULT_TTL);
+        if (!res.ok) return Response.json({ error: res.error || "device unreachable" }, { status: 502 });
+        return Response.json({ ok: true });
+      } catch {
+        return new Response("bad request", { status: 400 });
+      }
     }
 
     // Webhook receiver. HA (or any local script) POSTs here when an
@@ -831,14 +902,59 @@ const server = Bun.serve({
       try {
         const body: any = await req.json();
         if (typeof body?.title !== "string") return new Response("bad payload", { status: 400 });
-        const result = await pushToAll({
-          title: body.title,
-          body: body.body,
-          url: body.url,
-          icon: body.icon,
-          tag: body.tag,
-        });
-        return Response.json(result);
+        // Every event both pushes to phones AND mirrors to the LED, unless
+        // the caller opts a channel out. `led: false` suppresses the LED
+        // (e.g. HA's camera-detection alert — the floodlights already fire,
+        // so there's no value echoing it on the LCD). `push: false` makes
+        // an event LED-only. Optional `colour` (RRGGBB) + `ttl` tune the
+        // LED render; `ledText` overrides the (longer) push title.
+        const doPush = body.push !== false;
+        const doLed = body.led !== false;
+        const result = doPush
+          ? await pushToAll({ title: body.title, body: body.body, url: body.url, icon: body.icon, tag: body.tag })
+          : { sent: 0, pruned: 0, failed: 0 };
+        const led = doLed
+          ? await showOnLed(body.ledText || body.title, sanitizeColour(body.colour), body.ttl ?? LED_DEFAULT_TTL)
+          : { skipped: true };
+        return Response.json({ ...result, led });
+      } catch {
+        return new Response("bad request", { status: 400 });
+      }
+    }
+
+    // Radarr/Sonarr "On Import" webhook → green LED (download landed).
+    // Both point their Webhook connection here with an X-Push-Token header.
+    // We parse their native payload (movie vs series) rather than requiring
+    // a translation script. LED-only — no phone push (their imports are
+    // frequent enough that a push each would be noise; the LCD glance is
+    // the point). `Test` events short-circuit so their "Test" button works.
+    if (req.method === "POST" && url.pathname === "/api/arr-webhook") {
+      const want = process.env.PUSH_EVENT_TOKEN || "";
+      const got = url.searchParams.get("token") || req.headers.get("x-push-token") || "";
+      if (!want || got !== want) return new Response("unauthorized", { status: 401 });
+      try {
+        const p: any = await req.json();
+        const et = p?.eventType || "";
+        if (et === "Test") return Response.json({ ok: true, test: true });
+        // Only announce completed imports (Radarr+Sonarr both use "Download").
+        if (et !== "Download" && et !== "DownloadFolderImported") {
+          return Response.json({ ok: true, ignored: et });
+        }
+        let title = "";
+        if (p.movie) {
+          title = p.movie.title + (p.movie.year ? ` (${p.movie.year})` : "");
+        } else if (p.series) {
+          const eps: any[] = Array.isArray(p.episodes) ? p.episodes : [];
+          const e0 = eps[0];
+          const se = e0 && e0.seasonNumber != null && e0.episodeNumber != null
+            ? ` S${String(e0.seasonNumber).padStart(2, "0")}E${String(e0.episodeNumber).padStart(2, "0")}`
+            : "";
+          title = (p.series.title || "") + se;
+        } else {
+          title = p?.release?.releaseTitle || "Download complete";
+        }
+        const led = await showOnLed(title, LED.done);
+        return Response.json({ ok: true, title, led });
       } catch {
         return new Response("bad request", { status: 400 });
       }
@@ -1245,6 +1361,11 @@ const server = Bun.serve({
         const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         await Bun.write(`${PENDING_DIR}/${id}.txt`, prompt);
 
+        // Announce the incoming request on the LED (amber). Fire-and-forget
+        // — showOnLed never throws, but we don't await it so the submit
+        // stays snappy.
+        showOnLed(`Request: ${prompt}`, LED.request).catch(() => {});
+
         return Response.json({ ok: true, id });
       } catch {
         return new Response("Bad request", { status: 400 });
@@ -1443,3 +1564,52 @@ const server = Bun.serve({
 });
 
 console.log(`Dashboard running on port ${server.port}`);
+
+// ---- System-health → LED alerts -----------------------------------
+// A lightweight 60s tick that flashes a red LED alert when a threshold
+// is crossed: disk ≥90% full, sustained load (1-min avg ≥3× cores), or
+// any container stuck crash-looping. Each condition has a 30-min
+// re-alert cooldown so a persistently-full disk doesn't spam every
+// tick; clearing a condition resets its cooldown so a recurrence alerts
+// promptly. LED-only, and only when a device is configured.
+const HEALTH_COOLDOWN_MS = 30 * 60 * 1000;
+const lastHealthAlert = new Map<string, number>();
+async function healthAlert(key: string, message: string) {
+  const now = Date.now();
+  if (now - (lastHealthAlert.get(key) || 0) < HEALTH_COOLDOWN_MS) return;
+  lastHealthAlert.set(key, now);
+  await showOnLed(message, LED.alert, 20);
+}
+async function healthTick() {
+  // disk
+  try {
+    const s = statfsSync("/hostdata", { bigint: true });
+    const total = Number(s.blocks * s.bsize);
+    const free = Number(s.bavail * s.bsize);
+    if (total > 0) {
+      const pct = Math.round(((total - free) / total) * 100);
+      if (pct >= 90) await healthAlert("disk", `Disk ${pct}% full`);
+      else lastHealthAlert.delete("disk");
+    }
+  } catch {}
+  // load
+  try {
+    const l1 = loadavg()[0];
+    const cores = cpus().length || 1;
+    if (l1 / cores >= 3) await healthAlert("load", `High load ${l1.toFixed(1)}`);
+    else lastHealthAlert.delete("load");
+  } catch {}
+  // crash-looping containers (cheap list call — no per-container stats)
+  try {
+    const r = await fetch("http://docker/containers/json?all=true", { unix: "/var/run/docker.sock" } as any);
+    if (r.ok) {
+      const list: any[] = await r.json();
+      const looping = list
+        .filter((c) => c.State === "restarting")
+        .map((c) => (c.Names?.[0] || "").replace(/^\//, ""));
+      if (looping.length) await healthAlert("container", `${looping[0]} crash-looping`);
+      else lastHealthAlert.delete("container");
+    }
+  } catch {}
+}
+if (LED_ENABLED) setInterval(healthTick, 60_000);

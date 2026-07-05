@@ -237,6 +237,10 @@ services:
       #   clients — per-client allowed/blocked counts (only useful when Pi-hole
       #             is also the DHCP server, so it can see individual client IPs)
       - PIHOLE_PANEL=off
+      # LED matrix display device (server-side egress only — the dashboard
+      # is the sole container that talks to it, so remote/tunnelled use of
+      # the dashboard still drives the LED).
+      - LED_URL=${LED_URL}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

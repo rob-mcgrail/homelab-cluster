@@ -8,6 +8,7 @@ import linksPanel from './panels/links.js';
 import doubleFeaturesPanel from './panels/double-features.js';
 import floodlightsPanel from './panels/floodlights.js';
 import youtubePanel from './panels/youtube.js';
+import ledPanel from './panels/led.js';
 import dockerPanel from './panels/docker.js';
 import filmReviewsPanel from './panels/film-reviews.js';
 import { setPanels } from './config.js';
@@ -34,7 +35,7 @@ window.fetch = function(input, init = {}) {
 // already, panel mount runs synchronously.
 const cfg = (typeof window !== 'undefined' && window.__DASHBOARD_CONFIG__) || { piholePanel: 'off' };
 
-const basePanels = [filmReviewsPanel, doubleFeaturesPanel, recsPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, youtubePanel, linksPanel, dockerPanel];
+const basePanels = [filmReviewsPanel, doubleFeaturesPanel, recsPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, youtubePanel, ledPanel, linksPanel, dockerPanel];
 const panels = cfg.piholePanel && cfg.piholePanel !== 'off'
   ? [...basePanels, piholePanel]
   : basePanels;

@@ -241,6 +241,49 @@ curl -s -X POST -H "Content-Type: application/json" "$TV_URL/api/channels/bulk" 
 
 Openresty sidecar that rewrites `PlaybackInfo` on the `jellyfin-force-transcode.{DOMAIN}` subdomain to force HEVC transcoding for clients whose decoders stutter on real HEVC (Android TV). See `openresty/README.md` for the why, architecture, and gotchas.
 
+## LED display
+
+A LAN device with custom firmware that shows a short message on a small LCD:
+`GET http://<ip>/show?text=<brief>&ttl=<seconds>&colour=<RRGGBB>`. Its address
+is `LED_URL` in `.env` (`http://192.168.1.47`), passed to the dashboard container.
+
+**Single egress point.** *Only* the dashboard ever talks to the device — via
+`showOnLed()` in `dashboard/server.ts`. Every other source (HA, Radarr/Sonarr,
+the recs cron) POSTs to the dashboard's internal API, which relays server-side.
+This is what lets the LED work when the dashboard is opened remotely over the CF
+tunnel: the browser never needs LAN reachability to `192.168.x`. Docker-bridge
+NAT already lets the dashboard reach the LAN device — no extra container/network
+config. If `LED_URL` is unset, every LED path no-ops.
+
+**Semantic-but-creative palette** (RRGGBB, defined once as `LED` in `server.ts`,
+mirrored in the panel swatches):
+
+| Event                     | Colour       | Hex      |
+|---------------------------|--------------|----------|
+| Download imported (arr)   | green        | `00e676` |
+| Recommendations ready     | aquamarine   | `40e0d0` |
+| Request incoming to bot   | amber        | `ff9e00` |
+| System health alert       | red          | `ff2d55` |
+| Generic push mirror       | blue         | `2e9bff` |
+| Push test                 | cyan         | `00e5ff` |
+
+**Endpoints (`server.ts`):**
+- `POST /api/led {text, colour?, ttl?}` — the dashboard's **LED panel**
+  (`public/panels/led.js`). No token; behind Caddy's LAN-only auth like every
+  browser endpoint. `ttl` defaults to 10s; text hard-capped to `LED_MAX_CHARS`
+  (40) and collapsed to one line.
+- `POST /api/event` — extended: **every push also mirrors to the LED** unless the
+  caller passes `led:false` (HA's camera alert does — floodlights already fire,
+  so the LCD echo adds nothing). `push:false` makes an event LED-only. Optional
+  `colour` (RRGGBB) / `ttl` / `ledText` (override the longer push title).
+- `POST /api/arr-webhook?token=$PUSH_EVENT_TOKEN` — Radarr/Sonarr "On Import"
+  Webhook connection (created via their `/api/v3/notification`, name "LED
+  display"). Parses their native movie/series payload → green title. LED-only.
+
+**Server-side health monitor:** a 60s tick in `server.ts` fires a red alert when
+disk ≥90%, 1-min load ≥3×cores, or a container is crash-looping — each with a
+30-min re-alert cooldown, cleared when the condition resolves.
+
 ## Jellyfin libraries
 
 | Library     | Type    | Path                   |

@@ -1,0 +1,77 @@
+.panel-led { background: #0a0e14; }
+
+/* Tropical fish drifts across the top, its glow cycling through the hue
+   wheel — a nod to the RGB LED this panel drives. Flips at each end. */
+.ledfish {
+  font-size: 2.4rem; position: absolute; top: 22px;
+  animation: ledfishSwim 19s ease-in-out infinite, ledfishGlow 6s linear infinite;
+}
+@keyframes ledfishSwim {
+  0%   { left: -8%;  transform: scaleX(1)  translateY(0); }
+  49%  { left: 100%; transform: scaleX(1)  translateY(-4px); }
+  50%  { left: 100%; transform: scaleX(-1) translateY(-4px); }
+  99%  { left: -8%;  transform: scaleX(-1) translateY(0); }
+  100% { left: -8%;  transform: scaleX(1)  translateY(0); }
+}
+@keyframes ledfishGlow {
+  0%   { filter: drop-shadow(0 0 10px hsl(0, 90%, 60%)); }
+  33%  { filter: drop-shadow(0 0 10px hsl(120, 90%, 60%)); }
+  66%  { filter: drop-shadow(0 0 10px hsl(220, 90%, 60%)); }
+  100% { filter: drop-shadow(0 0 10px hsl(360, 90%, 60%)); }
+}
+
+.section-title-led {
+  font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
+  color: #7fdbff; margin-bottom: 1rem;
+  text-shadow: 0 0 10px rgba(127, 219, 255, 0.35);
+}
+
+.led-form { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.led-text-input {
+  background: #0f151d; color: #dfeaf5;
+  border: 1px solid #22303f; border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.95rem; font-family: inherit; outline: none;
+}
+.led-text-input:focus { border-color: #7fdbff; }
+
+.led-swatches { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.led-swatch {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer; padding: 0;
+  transition: transform 0.05s ease, border-color 0.15s ease;
+}
+.led-swatch:hover { transform: scale(1.1); }
+.led-swatch.active { border-color: #ffffff; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
+
+.led-row { display: flex; gap: 1rem; align-items: center; }
+.led-label {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.8rem; color: #8aa0b5; letter-spacing: 0.03em;
+}
+.led-colour {
+  width: 42px; height: 30px; padding: 0; border: 1px solid #22303f;
+  border-radius: 8px; background: #0f151d; cursor: pointer;
+}
+.led-ttl {
+  width: 64px; background: #0f151d; color: #dfeaf5;
+  border: 1px solid #22303f; border-radius: 8px;
+  padding: 0.5rem 0.6rem; font-size: 0.9rem; font-family: inherit; outline: none;
+}
+.led-ttl:focus { border-color: #7fdbff; }
+
+.led-send-btn {
+  background: linear-gradient(180deg, #1e9ad6, #1573ad);
+  color: white; border: 0; border-radius: 10px;
+  padding: 0.75rem 1.2rem; font-weight: 700; letter-spacing: 0.06em;
+  font-family: inherit; cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease;
+}
+.led-send-btn:hover { filter: brightness(1.1); }
+.led-send-btn:active { transform: translateY(1px); }
+.led-send-btn:disabled { opacity: 0.6; cursor: default; }
+
+.led-status { font-size: 0.8rem; color: #8aa0b5; min-height: 1rem; }
+.led-status.ok   { color: #86efac; }
+.led-status.fail { color: #fca5a5; }
