@@ -268,8 +268,12 @@ mirrored in the panel swatches):
 | Recommendations ready     | aquamarine   | `40e0d0` |
 | Request incoming to bot   | amber        | `ff9e00` |
 | System health alert       | red          | `ff2d55` |
-| Generic push mirror       | blue         | `2e9bff` |
 | Push test                 | cyan         | `00e5ff` |
+
+**No colour → band colour:** when a caller sends **no** `colour`, `showOnLed`
+omits it and the device (esp-tou **v7+**) renders the message in the **current
+tariff-band colour** (green/amber/red). That's the default for generic push
+mirrors and the news/quotes curator. The explicit colours above still override.
 
 **Endpoints (`server.ts`):**
 - `POST /api/led {text, colour?, ttl?}` — the dashboard's **LED panel**
@@ -279,7 +283,8 @@ mirrored in the panel swatches):
 - `POST /api/event` — extended: **every push also mirrors to the LED** unless the
   caller passes `led:false` (HA's camera alert does — floodlights already fire,
   so the LCD echo adds nothing). `push:false` makes an event LED-only. Optional
-  `colour` (RRGGBB) / `ttl` / `ledText` (override the longer push title).
+  `colour` (RRGGBB) / `ttl` / `ledText` (override the longer push title). Omit
+  `colour` and the LED shows the message in its current tariff-band colour.
 - `POST /api/arr-webhook?token=$PUSH_EVENT_TOKEN` — Radarr/Sonarr "On Import"
   Webhook connection (created via their `/api/v3/notification`, name "LED
   display"). Parses their native movie/series payload → green title. LED-only.
@@ -315,8 +320,8 @@ Each 5-min tick:
    - *quote*: one **deep cut** — an obscure-but-genuine line from the great
      aphorists (Nietzsche, Leibniz, Pascal, …) **plus Mao & Lenin**, with the
      famous greatest-hits explicitly banned. **No attribution shown** (Rob guesses).
-   - **Colours are fixed in the script**, not model-chosen: **news = white
-     (`ffffff`)**, **quotes = blue (`2e9bff`)**. Never red.
+   - **No colour is sent** — the payload omits it, so the LED shows each line in
+     the **current tariff-band colour** (green/amber/red) via esp-tou v7+.
    - Overruns 64 chars, or an empty/unparseable reply → **one retry**; char-accurate
      cap as last resort.
 5. **Recycling allowed** — recent lines are logged to `news-led/state/recent.jsonl`

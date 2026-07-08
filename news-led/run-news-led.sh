@@ -7,9 +7,11 @@
 #   3. picks a mode ~50/50: news vs quote
 #   4. news mode fetches RSS headlines; a pi (LLM) call curates ONE crisp
 #      <=64-char line, is allowed to return SKIP if nothing clears the bar,
-#      and also picks a fitting hex colour
+#      (no colour — see below)
 #   5. quote mode asks pi for one real, attributed aphorism/quote (great
-#      aphorists + Mao/Lenin), never skips, also colour-tagged
+#      aphorists + Mao/Lenin), no attribution, never skips.
+#   The LED colours every message with the CURRENT TARIFF BAND (esp-tou v7+):
+#   the payload sends no colour, so the device uses green/amber/red itself.
 #   6. posts LED-only (push:false) to the dashboard's /api/event, which is
 #      the sole egress to the device
 #
@@ -34,8 +36,8 @@ TARGET_SHOWS_PER_HOUR=8 # aim ~8 shown/hour (recycling allowed — see prompts)
 QUOTE_PCT=50           # ~50/50 split: chance a fire is a quote vs news
 NEWS_TTL=25            # seconds the LED holds a news line
 QUOTE_TTL=30          # quotes get a touch longer to read
-NEWS_DEFAULT_COL="ffffff"   # news  = white (fixed)
-QUOTE_DEFAULT_COL="2e9bff"  # quotes = blue  (fixed — never red)
+# Colour is not set here — the LED shows each message in the current tariff-band
+# colour (green/amber/red), because the payload sends no colour (esp-tou v7+).
 MODEL="deepseek/deepseek-v4-flash"
 
 # Feeds: "Label|url". Topics: world, NZ, tech, business.
@@ -123,12 +125,12 @@ if [ "$MODE" = "news" ]; then
   HEADLINES="$(python3 "$SCRIPT_DIR/fetch-headlines.py" "${FEEDS[@]}")"
   if [ -z "$HEADLINES" ]; then log "news: no headlines fetched"; exit 0; fi
   TEMPLATE="$SCRIPT_DIR/news-prompt.txt"
-  DEFAULT_COL="$NEWS_DEFAULT_COL"; TTL="$NEWS_TTL"
+  TTL="$NEWS_TTL"
 else
   RECENT_TXT="$(recent_block quote 30)"
   HEADLINES=""
   TEMPLATE="$SCRIPT_DIR/quotes-prompt.txt"
-  DEFAULT_COL="$QUOTE_DEFAULT_COL"; TTL="$QUOTE_TTL"
+  TTL="$QUOTE_TTL"
 fi
 
 PROMPT="$(RECENT="$RECENT_TXT" HEADLINES="$HEADLINES" python3 -c '
@@ -144,7 +146,7 @@ print(t)
 # clipped mid-attribution reads worse than staying quiet — or (b) returns an
 # empty/unparseable response (an occasional transient blip); the retry note
 # tells it what went wrong. A legitimate SKIP is respected immediately.
-line=""; colour=""; extra=""
+line=""; extra=""
 for attempt in 1 2; do
   P="$PROMPT"
   [ -n "$extra" ] && P="$PROMPT
@@ -161,7 +163,7 @@ $extra"
   cd "$REPO_ROOT" && timeout 150 "$PI" --provider openrouter --model "$MODEL" --thinking high --no-tools -p "$P" > "$OUTFILE" 2>>"$LOGFILE"
   OUT="$(cat "$OUTFILE" 2>/dev/null)"
   rm -f "$OUTFILE"
-  # Parse the last RESULT: line. Colour is fixed per mode (below), not model-chosen.
+  # Parse the last RESULT: line (no colour — the LED uses the tariff band).
   line="$(printf '%s\n' "$OUT" | grep -a '^RESULT:' | tail -n1 | sed 's/^RESULT:[[:space:]]*//')"
   line="$(printf '%s' "$line" | sed 's/^["“ ]*//; s/["” ]*$//')"   # strip wrapping quotes/space
   # A legitimate SKIP (news found nothing worth showing) — respect it, no retry.
@@ -187,21 +189,20 @@ if printf '%s' "$line" | grep -qiE '^skip$'; then
   exit 0
 fi
 
-# Fixed colour per mode: blue for quotes, white for news (set as DEFAULT_COL above).
-colour="$DEFAULT_COL"
-
 # Char-accurate cap (bash substring counts bytes; the — em-dash is 3 bytes,
 # which would clip an attribution mid-word). Server also caps at LED_MAX_CHARS.
 line="$(TXT="$line" python3 -c 'import os; print(os.environ["TXT"][:64])')"
 
 # ---- deliver ----------------------------------------------------------------
-payload="$(TXT="$line" COL="$colour" TTL="$TTL" python3 -c '
+# No colour sent: the dashboard omits it and the LED shows the message in the
+# current tariff-band colour (esp-tou v7+).
+payload="$(TXT="$line" TTL="$TTL" python3 -c '
 import os, json
 print(json.dumps({"title": os.environ["TXT"], "push": False,
-                  "colour": os.environ["COL"], "ttl": int(os.environ["TTL"])}))')"
+                  "ttl": int(os.environ["TTL"])}))')"
 
 if [ "$DRY" = "1" ]; then
-  printf 'MODE=%s COLOUR=%s\n%s\n' "$MODE" "$colour" "$payload"
+  printf 'MODE=%s (colour: band)\n%s\n' "$MODE" "$payload"
   exit 0
 fi
 
@@ -213,14 +214,14 @@ if curl -fsS -m 12 -X POST \
      -H "X-Push-Token: $PUSH_EVENT_TOKEN" \
      "http://localhost:8000/api/event" -d "$payload" > /dev/null 2>&1; then
   # Record it so future runs don't repeat, and prune the log.
-  TXT="$line" MODE="$MODE" COL="$colour" NZ="$nzdate" REC="$RECENT" python3 -c '
+  TXT="$line" MODE="$MODE" NZ="$nzdate" REC="$RECENT" python3 -c '
 import os, json, time
 row = {"ts": int(time.time()), "date": os.environ["NZ"], "mode": os.environ["MODE"],
-       "text": os.environ["TXT"], "colour": os.environ["COL"]}
+       "text": os.environ["TXT"]}
 open(os.environ["REC"], "a").write(json.dumps(row) + "\n")
 ' 2>>"$LOGFILE"
   tail -n 300 "$RECENT" > "$RECENT.tmp" 2>/dev/null && mv "$RECENT.tmp" "$RECENT"
-  log "$MODE shown [$colour]: $line"
+  log "$MODE shown (band): $line"
 else
   log "$MODE: POST failed: $line"
 fi

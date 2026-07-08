@@ -72,15 +72,18 @@ function sanitizeColour(c: unknown, fallback = LED.info): string {
 // collapsed to a single line and hard-capped (small LCD).
 async function showOnLed(
   text: string,
-  colour: string = LED.info,
+  colour?: string | null,   // omit/empty → device uses its live power-band colour (esp-tou v7+)
   ttl: number = LED_DEFAULT_TTL,
 ): Promise<{ ok: boolean; skipped?: boolean; status?: number; error?: string }> {
   if (!LED_ENABLED) return { ok: false, skipped: true };
   const t = String(text || "").replace(/\s+/g, " ").trim().slice(0, LED_MAX_CHARS);
   if (!t) return { ok: false, skipped: true };
-  const col = sanitizeColour(colour);
   const sec = Math.min(Math.max(Math.round(Number(ttl) || LED_DEFAULT_TTL), 1), 300);
-  const u = `${LED_URL}/show?text=${encodeURIComponent(t)}&ttl=${sec}&colour=${col}`;
+  // Only pass a colour when the caller gave one; otherwise omit it so the
+  // device shows the message in the current tariff-band colour.
+  const hasColour = colour != null && String(colour).trim() !== "";
+  const colParam = hasColour ? `&colour=${sanitizeColour(colour)}` : "";
+  const u = `${LED_URL}/show?text=${encodeURIComponent(t)}&ttl=${sec}${colParam}`;
   try {
     const r = await fetch(u, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) console.error("LED show non-2xx:", r.status);
@@ -937,7 +940,7 @@ const server = Bun.serve({
           ? await pushToAll({ title: body.title, body: body.body, url: body.url, icon: body.icon, tag: body.tag })
           : { sent: 0, pruned: 0, failed: 0 };
         const led = doLed
-          ? await showOnLed(body.ledText || body.title, sanitizeColour(body.colour), body.ttl ?? LED_DEFAULT_TTL)
+          ? await showOnLed(body.ledText || body.title, body.colour, body.ttl ?? LED_DEFAULT_TTL)
           : { skipped: true };
         return Response.json({ ...result, led });
       } catch {

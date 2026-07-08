@@ -6,7 +6,7 @@
 //   LCD line 2: clock + band end   e.g. "14:32 ends 17:00"
 //   RGB bar: band colour, lit length = fraction of the band remaining.
 
-#define FW_VERSION "6"  // bump on release; shown by GET / to verify OTA
+#define FW_VERSION "7"  // bump on release; shown by GET / to verify OTA
 
 #include <WiFi.h>
 #include <WebServer.h>
@@ -72,6 +72,7 @@ bool backlightAlways = false;
 // Message override state (set via GET /show)
 String overrideText;
 uint32_t overrideColor = 0xFFFFFF;  // 0xRRGGBB
+bool overrideBandColor = false;     // true = ignore overrideColor, follow the live tariff band
 uint32_t overrideUntil = 0;         // millis() deadline
 int overridePage = 0;               // messages >32 chars page every 2s
 uint32_t overridePageAt = 0;
@@ -275,10 +276,13 @@ void handleShow() {
   if (ttl <= 0) ttl = 60;
   if (ttl > 604800L) ttl = 604800L;  // 7 days; keeps millis math wrap-safe
 
+  // No colour given → follow the current tariff band colour (live). An empty
+  // or absent colour arg means "band"; a present-but-bad one is an error.
   String colorArg = server.hasArg("colour") ? server.arg("colour")
                                             : server.arg("color");
+  bool useBand = (colorArg.length() == 0);
   uint32_t color = 0xFFFFFF;
-  if (colorArg.length() > 0 && !parseColor(colorArg, color)) {
+  if (!useBand && !parseColor(colorArg, color)) {
     server.send(400, "text/plain",
                 "bad colour: RRGGBB hex or a name like red/green/amber\n");
     return;
@@ -286,16 +290,20 @@ void handleShow() {
 
   overrideText = text;
   overrideColor = color;
+  overrideBandColor = useBand;
   overrideUntil = millis() + (uint32_t)ttl * 1000;
   overridePage = 0;
   overridePageAt = millis();
 
-  char resp[64];
-  snprintf(resp, sizeof(resp), "ok: showing for %lds in #%06X\n", ttl,
-           (unsigned)color);
+  char resp[72];
+  if (useBand)
+    snprintf(resp, sizeof(resp), "ok: showing for %lds in band colour\n", ttl);
+  else
+    snprintf(resp, sizeof(resp), "ok: showing for %lds in #%06X\n", ttl,
+             (unsigned)color);
   server.send(200, "text/plain", resp);
-  Serial.printf("HTTP show: \"%s\" ttl=%lds colour=#%06X\n", text.c_str(),
-                ttl, (unsigned)color);
+  Serial.printf("HTTP show: \"%s\" ttl=%lds colour=%s\n", text.c_str(), ttl,
+                useBand ? "band" : "explicit");
 }
 
 void handleClear() {
@@ -328,7 +336,7 @@ void handleRoot() {
   char body[256];
   snprintf(body, sizeof(body),
            "esp-tou v" FW_VERSION "\nband: %s\ntime: %s\noverride: %s\n\n"
-           "GET /show?text=hi&ttl=60&colour=amber (name or RRGGBB hex)\n"
+           "GET /show?text=hi&ttl=60[&colour=amber] (omit colour = band colour)\n"
            "GET /backlight?mode=always|auto\n"
            "GET /clear\n",
            timeIsSet() ? BAND_NAME[bandAt(now.tm_wday,
@@ -392,8 +400,13 @@ void renderOverride() {
   localtime_r(&t, &now);
   strip.setBrightness(inNightDim(now.tm_hour * 60 + now.tm_min)
                           ? NIGHT_BRIGHTNESS : DAY_BRIGHTNESS);
+  // band mode tracks the live tariff colour, so a long message re-colours if
+  // the band changes under it
+  uint32_t c = overrideBandColor
+                   ? bandColor(bandAt(now.tm_wday, now.tm_hour * 60 + now.tm_min))
+                   : overrideColor;
   strip.clear();
-  setPixel(pos, overrideColor);
+  setPixel(pos, c);
   strip.show();
   pos = (pos + 1) % PIXEL_COUNT;
 }

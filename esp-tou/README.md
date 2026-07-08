@@ -13,7 +13,9 @@ and then runs standalone — no server, no cloud.
 - **LCD line 2**: clock and when the band ends — `2:32 ends 5:00`
   (12-hour, no am/pm)
 - **RGB bar**: band colour (green / amber / red); the number of lit LEDs
-  drains as the band runs out. Dims automatically 9pm–7am.
+  drains as the band runs out. Dims automatically 9pm–7am. While an API
+  message is showing (`GET /show`), the accent LED uses the `colour=` you
+  pass — or, if you pass none, the **current band colour**.
 - **LCD backlight**: in the default `auto` mode it stays off, waking only
   while an API message is showing; `GET /backlight?mode=always` keeps it
   lit instead (setting persists across power cycles). (The backpack offers
