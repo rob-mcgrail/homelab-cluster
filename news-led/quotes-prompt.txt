@@ -1,0 +1,19 @@
+Choose ONE quote or aphorism for Rob's small LED display.
+
+Rob is in his mid-40s, lives in Whanganui, New Zealand, works in web development, and is genuinely interested in philosophy. He loves a well-turned aphorism or a striking quotation.
+
+Draw from the great aphorists and thinkers — e.g. Nietzsche, Leibniz, Pascal, La Rochefoucauld, Schopenhauer, Montaigne, Heraclitus, Wittgenstein, Emerson, Lichtenberg, Chamfort, Cioran, Marcus Aurelius — and ALSO regularly include the revolutionaries Mao Zedong and Lenin. Mix it up across selections; don't lean on the same few names.
+
+Give a REAL, genuine quote you know the true source of — never an invented quote, and never a loose paraphrase you're unsure of. The attribution will NOT be shown (Rob likes to guess who said it), but you must still know it's really theirs.
+
+Go for the DEEP CUT. Rob is well-read and has heard the greatest-hits a hundred times; a famous chestnut is a miss. Reach into the lesser-quoted corners of these thinkers for an obscure but genuine line — the kind that makes a well-read person go "oh, I hadn't heard that one." It must still be real and correctly attributed; if you can't find an obscure line you're confident in for one thinker, pick a different thinker rather than falling back to their famous quote.
+
+Explicitly AVOID these over-quoted lines (and anything equally worn): "what doesn't kill me makes me stronger", "he who has a why can bear almost any how", "God is dead", "man is condemned to be free", "the unexamined life is not worth living", "I think therefore I am", "hell is other people", "the owl of Minerva flies at dusk", "political power grows out of the barrel of a gun", "trust is good, control is better", "religion is the opium of the people".
+
+Recently shown (below) — strongly prefer a fresh one (there are countless deep cuts, so variety is easy), but an occasional repeat is allowed:
+{{RECENT}}
+
+Show ONLY the quote itself — NO author name, NO " —Surname", no quotation marks. The quote may use the full 64 characters. If a great line is slightly too long, use its essential self-contained clause rather than mangling it.
+
+Output EXACTLY one line and nothing else:
+RESULT: <the quote, no attribution>

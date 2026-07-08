@@ -56,6 +56,9 @@ movie-bot-data/.commission-queue/
 movie-bot-data/.reviews.lock
 movie-bot-data/.commission-processor.lock
 
+# Ambient LED news/quotes curator — runtime state (dedup log + run log)
+news-led/state/
+
 # Python bytecode (e.g. tracker-watch syntax checks)
 __pycache__/
 *.pyc

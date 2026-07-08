@@ -13,11 +13,13 @@ Follows the [Servarr Docker Guide](https://wiki.servarr.com/docker-guide) path c
 ## Storage
 
 Data lives on one or more USB storage drives pooled via mergerfs:
-- `/mnt/disk1` — ext4 USB drive (add more as `/mnt/disk2`, etc.)
-- `/srv/data` — mergerfs mount pooling `/mnt/disk1` (and future drives)
+- `/mnt/disk2`, `/mnt/disk3` (3.6 TB each) + `/mnt/disk5` (8 TB) — ext4 USB drives (add more as `/mnt/diskN`)
+- `/srv/data` — mergerfs mount pooling them (~15 TB)
 - `DATA_ROOT=/srv/data` in `.env` — all containers reference this
 
-Both the disk mount and mergerfs pool are in `/etc/fstab` with `nofail` so the system boots even if the USB drive isn't plugged in.
+Both the disk mounts and mergerfs pool are in `/etc/fstab` with `nofail` so the system boots even if a USB drive isn't plugged in.
+
+(`disk4`, a 2.7 TB Seagate, died of USB-bridge faults and was binned in July 2026 — hence the gap in the numbering.)
 
 The mergerfs create policy is `category.create=epmfs` (existing path, most free space). For a new file/dir, mergerfs picks the branch that already has the parent path *and* has the most free space. This keeps related files together on the same disk so hardlinks (Sonarr/Radarr import `torrents` → `media`) don't cross filesystems and fall back to copies.
 
@@ -93,6 +95,8 @@ done
 ```
 
 Hardlinks only work within a single branch, so both files must physically live on the same disk under `/mnt/diskN`. With `epmfs` + matching top-level folders on every disk this is the default.
+
+**Gotcha:** copying hardlinked pairs *through* the mergerfs pool (e.g. `rsync -aH` into `/srv/data`) can't recreate the hardlink across branches (`EXDEV`), so it silently writes both halves as full copies — doubling the space. Copy into a single `/mnt/diskN` instead (where `rsync -H` works), then re-link with the audit above. (`~/retired-scripts/relink-hardlinks.sh` automates the sweep if you need it.)
 
 ## Key files
 
@@ -288,6 +292,42 @@ path. Both are LED-only (no phone push).
 **Server-side health monitor:** a 60s tick in `server.ts` fires a red alert when
 disk ≥90%, 1-min load ≥3×cores, or a container is crash-looping — each with a
 30-min re-alert cooldown, cleared when the condition resolves.
+
+## LED news & quotes (ambient curator)
+
+`news-led/run-news-led.sh` — a host cron job (`*/5 * * * *`) that regularly
+surfaces one genuinely-interesting item on the LCD: either a **news** headline or
+a **quote/aphorism**. It's LED-only (`push:false`) — ambient, never a phone buzz.
+Like the other bots it POSTs to the dashboard's `/api/event` (the single LED
+egress); no `server.ts` changes.
+
+Each 5-min tick:
+1. **Waking-hours gate** — proceeds only 07:00–23:00 **NZ local**, read via
+   `TZ="Pacific/Auckland"` so it self-corrects for NZDT/NZST (the host is UTC).
+2. **Rate gate** — fires ~2/3 of ticks (`TARGET_SHOWS_PER_HOUR`/`ATTEMPTS_PER_HOUR`
+   = 8/12) so it averages **~8/hour**.
+3. **Mode** — ~50/50 news vs quote (`QUOTE_PCT`). News may return **SKIP** only if
+   nothing is of any interest (rare now); quotes never skip.
+4. **Curation** — a `pi` call (`deepseek-v4-flash`, `--thinking high`, `--no-tools`):
+   - *news*: fetches RSS (`fetch-headlines.py`: BBC World/Business, Guardian
+     World, RNZ, Ars Technica, HN) and picks ONE crisp ≤64-char line for the
+     persona — mid-40s Whanganui web dev, into global affairs + philosophy.
+   - *quote*: one **deep cut** — an obscure-but-genuine line from the great
+     aphorists (Nietzsche, Leibniz, Pascal, …) **plus Mao & Lenin**, with the
+     famous greatest-hits explicitly banned. **No attribution shown** (Rob guesses).
+   - **Colours are fixed in the script**, not model-chosen: **news = white
+     (`ffffff`)**, **quotes = blue (`2e9bff`)**. Never red.
+   - Overruns 64 chars, or an empty/unparseable reply → **one retry**; char-accurate
+     cap as last resort.
+5. **Recycling allowed** — recent lines are logged to `news-led/state/recent.jsonl`
+   (gitignored, last 300) and fed back to bias toward variety, but at this cadence
+   repeats are fine — a huge story re-showing beats going quiet.
+
+Prompts live in `news-led/news-prompt.txt` / `quotes-prompt.txt` (tune the bar,
+roster, or persona there). Config knobs (waking window, rate, quote %, colours,
+model, feeds) are at the top of the script. Manual test flags: `--now` (skip
+gates), `--dry` (print, don't post), `--news` / `--quote` (force mode). Runtime
+log: `news-led/state/run.log`.
 
 ## Jellyfin libraries
 

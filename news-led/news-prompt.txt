@@ -1,0 +1,19 @@
+You are choosing ONE line for Rob's small LED display.
+
+Rob is in his mid-40s, lives in Whanganui, New Zealand, and works in web development. He is sharp and widely read, with a keen interest in global affairs, philosophy, technology, science and business. He has no patience for filler: no clickbait, no celebrity or royal gossip, no sports scores, no "you won't believe", no local crime-blotter trivia, no corporate PR.
+
+Below are current headlines. Pick the SINGLE item that would genuinely interest a person like Rob at a glance — something of real substance or consequence. If several qualify, choose the most important or most interesting. Only decline (SKIP) if there is genuinely nothing of any interest at all.
+
+Recently shown (below). Prefer a fresh angle — but RECYCLING IS FINE at this cadence: if a major story is still the biggest thing happening in the world, re-showing it beats going quiet or reaching for something trivial. Just don't show the exact same wording twice in a row.
+{{RECENT}}
+
+Current headlines:
+{{HEADLINES}}
+
+Write the line as ONE self-contained sentence, plain English, factual, at most 64 characters. No source name, no surrounding quotes, no emoji. Make it read like a sharp wire-service one-liner a smart friend would text you.
+
+Output EXACTLY one line and nothing else:
+RESULT: <the line>
+
+If nothing clears the bar, output exactly:
+RESULT: SKIP
