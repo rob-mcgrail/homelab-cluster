@@ -134,7 +134,7 @@ the device to **http://192.168.1.47**; mDNS also answers at
 | Route    | Params | Effect |
 |----------|--------|--------|
 | `/`      | —      | plain-text status + usage |
-| `/show`  | `text` (≤64 ASCII chars), `ttl` (seconds, default 60, max 7 days), `colour` or `color` (name or `RRGGBB` hex, default white) | Takes over the LCD with the message, word-wrapped across the two 16-char lines; texts longer than one screen page every 1.5s. One LED chases around the bar per second in the colour until the TTL expires |
+| `/show`  | `text` (≤64 ASCII chars), `ttl` (seconds, default 60, max 7 days), `colour` or `color` (name or `RRGGBB` hex, default white) | Takes over the LCD with the message, word-wrapped across the two 16-char lines; texts longer than one screen page every 2s. One LED chases around the bar per second in the colour until the TTL expires |
 | `/clear` | —      | Ends the override early |
 | `/backlight` | `mode` = `always` or `auto` (omit to just read the current mode) | `always` keeps the LCD backlit; `auto` lights it only while a message shows. Persists across power cycles |
 
