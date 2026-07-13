@@ -11,7 +11,9 @@ and then runs standalone — no server, no cloud.
 - **LCD line 1**: current band — `Power very cheap` / `Power is cheap` /
   `Power expensive` (16-char limit rules out longer wording)
 - **LCD line 2**: clock and when the band ends — `2:32 ends 5:00`
-  (12-hour, no am/pm)
+  (12-hour, no am/pm). When the *next* band is actually **cheaper** than the
+  current one, this reads `Cheaper at 11:00` instead — "ends" would wrongly
+  imply you should use power now, when the smart move is to wait.
 - **RGB bar**: band colour (green / amber / red); the number of lit LEDs
   drains as the band runs out. Dims automatically 9pm–7am. While an API
   message is showing (`GET /show`), the accent LED uses the `colour=` you

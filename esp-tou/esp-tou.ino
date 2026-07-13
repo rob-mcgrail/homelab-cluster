@@ -6,7 +6,7 @@
 //   LCD line 2: clock + band end   e.g. "14:32 ends 17:00"
 //   RGB bar: band colour, lit length = fraction of the band remaining.
 
-#define FW_VERSION "7"  // bump on release; shown by GET / to verify OTA
+#define FW_VERSION "8"  // bump on release; shown by GET / to verify OTA
 
 #include <WiFi.h>
 #include <WebServer.h>
@@ -209,9 +209,19 @@ void render(const tm& now) {
   int total     = remaining + elapsed;
   int endMin    = (minuteOfDay + remaining) % MIN_PER_DAY;
 
+  // The band enum is price-ordered (VERY_CHEAP < OFF_PEAK < PEAK), so a lower
+  // value for the upcoming window means it's *cheaper* than now. In that case
+  // "ends H:MM" reads as a warning to use power now, which is backwards — the
+  // smart move is to wait. Say "Cheaper at H:MM" instead. ("Even cheaper" won't
+  // fit 16 chars once the time is appended.) Otherwise keep the clock + "ends".
+  Band nextBand = bandAtWeek(weekMin + remaining);
   lcdLine(0, BAND_NAME[band]);
-  lcdLine(1, clock12(now.tm_hour, now.tm_min) + " ends " +
-                 clock12(endMin / 60, endMin % 60));
+  if (nextBand < band) {
+    lcdLine(1, "Cheaper at " + clock12(endMin / 60, endMin % 60));
+  } else {
+    lcdLine(1, clock12(now.tm_hour, now.tm_min) + " ends " +
+                   clock12(endMin / 60, endMin % 60));
+  }
 
   // auto mode: backlight only wakes for API messages (renderOverride)
   setBacklight(backlightAlways);
