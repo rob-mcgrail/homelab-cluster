@@ -15,7 +15,7 @@ services:
       - DOCKER_MODS=linuxserver/mods:jellyfin-opencl-intel
     volumes:
       - ${CONFIG_ROOT}/jellyfin:/config
-      - ${DATA_ROOT}/media:/data/media
+      - ${DATA_ROOT}/media:/data/media:rslave
     devices:
       - /dev/dri:/dev/dri
     group_add:
@@ -39,7 +39,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ${CONFIG_ROOT}/sonarr:/config
-      - ${DATA_ROOT}:/data
+      - ${DATA_ROOT}:/data:rslave
     ports:
       - 8989:8989
     restart: unless-stopped
@@ -59,7 +59,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ${CONFIG_ROOT}/radarr:/config
-      - ${DATA_ROOT}:/data
+      - ${DATA_ROOT}:/data:rslave
     ports:
       - 7878:7878
     restart: unless-stopped
@@ -99,7 +99,7 @@ services:
       - WEBUI_PORT=8080
     volumes:
       - ${CONFIG_ROOT}/qbittorrent:/config
-      - ${DATA_ROOT}/torrents:/data/torrents
+      - ${DATA_ROOT}/torrents:/data/torrents:rslave
     ports:
       - 8080:8080
       - 6881:6881
@@ -205,7 +205,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ${CONFIG_ROOT}/bazarr:/config
-      - ${DATA_ROOT}:/data
+      - ${DATA_ROOT}:/data:rslave
     ports:
       - 6767:6767
     restart: unless-stopped
@@ -246,7 +246,7 @@ services:
     volumes:
       - ./movie-bot-data:/movie-bot-data
       - ./dashboard/public:/app/public
-      - ${DATA_ROOT}:/hostdata:ro
+      - ${DATA_ROOT}:/hostdata:ro,rslave
       - ${CONFIG_ROOT}/pihole/etc-pihole/dhcp.leases:/pihole/dhcp.leases:ro
       # Read-only access to HA's cam-recordings so the dashboard can
       # list + serve them in the Floodlights panel.

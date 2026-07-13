@@ -431,7 +431,7 @@ Which services fit this model — and which don't:
 | Dashboard (`www`) | Yes | Browser-only, no native app. |
 | Sonarr / Radarr / Prowlarr / Bazarr | Yes | Pure web UI + REST. Internal containers reach each other via the docker network (`sonarr:8989`, not via Caddy), so cross-service API calls aren't affected. |
 | qBittorrent | Yes | Web UI only. |
-| Jellyfin | No | Native apps (Android TV, iOS) authenticate with bearer tokens, not cookies — they'd bounce off the gate on every API call. |
+| Jellyfin | No | Native apps (Android TV, iOS) authenticate with bearer tokens, not cookies — they'd bounce off the gate on every API call. The `jf-ext.{DOMAIN}` subdomain *is* tunnelled (a public alias of the HEVC-force-transcode proxy, for remote Android TV clients), exposed raw and protected only by Jellyfin's own login; plain `jellyfin.{DOMAIN}` and the LAN-only `jellyfin-force-transcode.{DOMAIN}` are not tunnelled. |
 | Navidrome | No | Subsonic-API clients (Symfonium, DSub) authenticate via query-param tokens. |
 | Home Assistant | No | The Companion app uses long-lived bearer tokens; mobile push relies on the app reaching HA. |
 

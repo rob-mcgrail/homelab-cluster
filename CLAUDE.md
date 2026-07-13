@@ -43,7 +43,9 @@ For `epmfs` to actually distribute writes, the top-level paths must exist on eve
    sudo setfattr -n user.mergerfs.srcmounts -v "+/mnt/disk2" /srv/data/.mergerfs
    ```
    Or, if the stack is down, `sudo umount /srv/data && sudo mount -a`.
-8. No container changes needed — mergerfs pools transparently.
+8. **Restart the media containers so they see the new branch.** The `${DATA_ROOT}` binds use `rslave` propagation (see `docker-compose.yml`), so containers *recreated* after the drive-add follow the host's shared `/srv/data` mount automatically. But a plain `umount /srv/data && mount -a` (or automount re-trigger) replaces the FUSE mount, and any container still running from **before** the add stays pinned to the stale mount — it won't see files mergerfs places on the new disk, so Radarr/Sonarr imports silently stall (`importPending`, "No files found are eligible for import") and Jellyfin can't see the media. Fix: `docker compose up -d` (recreates → picks up the current mount) or at minimum `docker restart jellyfin sonarr radarr bazarr qbittorrent`. Verify with `docker exec radarr sh -c 'ls /data/torrents | wc -l'` vs `ls /srv/data/torrents | wc -l` — the counts must match.
+
+   > Historical note: this bit us when disk5 (8 TB) was added in July 2026 — most new downloads landed there via `epmfs` (most-free-space) and were invisible to the pre-existing containers until they were restarted. `rslave` + the recreate step above prevents a recurrence.
 
 ### Auditing hardlinks (torrents ↔ media)
 
@@ -244,6 +246,8 @@ curl -s -X POST -H "Content-Type: application/json" "$TV_URL/api/channels/bulk" 
 ## jellyfin-proxy
 
 Openresty sidecar that rewrites `PlaybackInfo` on the `jellyfin-force-transcode.{DOMAIN}` subdomain to force HEVC transcoding for clients whose decoders stutter on real HEVC (Android TV). See `openresty/README.md` for the why, architecture, and gotchas.
+
+`jellyfin-force-transcode.{DOMAIN}` itself stays **LAN-only** (resolves to `${LAN_IP}` via the wildcard; also pinned as a Pi-hole local DNS record). For remote access there's a separate public alias, **`jf-ext.{DOMAIN}`**, which has its own Caddy block pointing at the same `jellyfin-proxy:8096` origin and is exposed through the cloudflared tunnel (ingress rule in `/etc/cloudflared/config.yml` → `https://localhost:443` → Caddy's `jf-ext` block). Point a remote Android TV client at `jf-ext` to get forced H.264 transcoding when away from home. Unlike `www` it has **no cookie gate** — a native Jellyfin client can't do the LAN cookie-mint flow — so it relies solely on Jellyfin's own login. Plain `jellyfin.{DOMAIN}` is not tunnelled either.
 
 ## LED display
 

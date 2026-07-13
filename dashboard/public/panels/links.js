@@ -4,7 +4,8 @@ import { PANELS as DOTS } from '../config.js';
 
 const SERVICES = [
   { host: 'jellyfin',                 name: 'Jellyfin',                    desc: 'Media player & library' },
-  { host: 'jellyfin-force-transcode', name: 'Jellyfin — force transcode',  desc: 'HEVC-stripped proxy for Android TV' },
+  { host: 'jellyfin-force-transcode', name: 'Jellyfin — force transcode',  desc: 'HEVC-stripped proxy for Android TV (LAN only)' },
+  { host: 'jf-ext',                   name: 'Jellyfin — remote',           desc: 'Public force-transcode alias via CF tunnel (off-LAN)' },
   { host: 'sonarr',                   name: 'Sonarr',                      desc: 'TV show management' },
   { host: 'radarr',                   name: 'Radarr',                      desc: 'Movie management' },
   { host: 'prowlarr',                 name: 'Prowlarr',                    desc: 'Indexer management' },

@@ -10,6 +10,14 @@ jellyfin-force-transcode.{$DOMAIN} {
 	reverse_proxy jellyfin-proxy:8096
 }
 
+# Public (tunnelled) alias of the force-transcode proxy, for remote
+# Android TV clients. Same openresty HEVC-strip origin as above;
+# reachable externally via the cloudflared ingress rule for this host.
+# No cookie gate — protected by Jellyfin's own login.
+jf-ext.{$DOMAIN} {
+	reverse_proxy jellyfin-proxy:8096
+}
+
 sonarr.{$DOMAIN} {
 	reverse_proxy sonarr:8989
 }
