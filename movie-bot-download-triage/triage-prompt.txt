@@ -8,7 +8,7 @@ setup and API cheat sheet. Source .api_keys before any API call.
 
 ## Goal
 
-Two related problems to manage:
+Three related problems to manage:
 
 1. **Torrent queue health** — keep working torrents working, replace
    or remove dead ones so partial bytes turn into watchable media.
@@ -17,6 +17,13 @@ Two related problems to manage:
    off the quality profile, or because the indexer set isn't returning
    anything yet. After enough waiting, relax the profile or trigger a
    fresh search.
+3. **Seeding hygiene** — CinemaZ is a private tracker with hit-and-run
+   penalties, and the user has been getting flagged (missing the
+   timing cutoff by a few days). CinemaZ torrents must seed for at
+   least 61 days, protected from ratio-based cutoffs. Everything else
+   (public trackers, and any other private tracker not explicitly
+   covered here) should stop seeding quickly — barely any seeding,
+   and never enough to compete with CinemaZ for upload bandwidth.
 
 Don't thrash: every action should move things toward "more watchable
 stuff", not just shuffle state. Be proactive on Radarr — patience is
@@ -30,6 +37,11 @@ with nothing grabbed needs a nudge.
   count, size, state, tags. Cross-reference with Radarr
   (/api/v3/queue) and Sonarr (/api/v3/queue) to get titles + arr-side
   queue IDs you'll need for removal/search commands.
+- For torrents that have finished downloading (state one of
+  `uploading`, `forcedUP`, `stalledUP`, `queuedUP`, `checkingUP`),
+  also pull `private`, `tracker`, `ratio`, `ratio_limit`,
+  `seeding_time`, `seeding_time_limit` — you need these for the
+  seeding-policy pass below.
 
 ### Radarr-side: monitored + missing movies
 - All movies where `monitored=true`, `hasFile=false`, and
@@ -67,6 +79,64 @@ with nothing grabbed needs a nudge.
 - **Boost priority** (qBit: set high + topPrio). Cheap and safe;
   apply freely to fresh small-batch user requests.
 - **Tag / untag** in qBit. You own the `triage-*` namespace.
+
+### Seeding-side (qBit, torrents that finished downloading)
+Applies to any torrent in state `uploading`, `forcedUP`, `stalledUP`,
+`queuedUP`, or `checkingUP`.
+
+- **Set share limits** — POST `/api/v2/torrents/setShareLimits` with
+  `hashes`, `ratioLimit`, `seedingTimeLimit`, `inactiveSeedingTimeLimit`
+  (minutes; `-1` = no limit, `-2` = use global default). This
+  overrides the global `max_ratio`/`max_seeding_time` per torrent, so
+  qBit's own daemon enforces it continuously — not just once per
+  4-hour triage pass.
+- **Set queue priority** (`topPrio`) — guarantees a torrent wins one
+  of the `max_active_uploads` slots (10, see qBit prefs) ahead of
+  others when the active-upload queue is contended.
+- **Remove from qBit directly** —
+  `/api/v2/torrents/delete?hashes=...&deleteFiles=false`. A finished,
+  seeding torrent is no longer in Radarr/Sonarr's `/queue` (the arr
+  already imported it), so use qBit's own delete, not the arr-queue
+  removal above. `deleteFiles=false` keeps the on-disk copy — it's
+  usually a hardlink twin of the file already in `/data/media`, so no
+  space is freed either way (that's the separate hardlink-audit job
+  in CLAUDE.md, out of scope here).
+
+### Seeding policy — identify the tracker, then apply
+For every torrent in a finished/seeding state, look at `private` and
+`tracker` (the announce URL host) to classify it:
+
+- **CinemaZ** (`private=true` AND `tracker` host contains
+  `cinemaz.to`) — protect these hard, hit-and-run penalties on a
+  private tracker matter more than reclaiming bandwidth or disk:
+  - `setShareLimits`: `ratioLimit=-1` (never auto-stop on ratio),
+    `seedingTimeLimit=87840` (61 days, in minutes — the user's
+    explicit minimum), `inactiveSeedingTimeLimit=-1` (don't penalize
+    it for having no active downloaders; waiting out the clock is the
+    whole point).
+  - `topPrio` it, so it always wins an active-upload slot over
+    anything else if the 10-slot cap is ever contended.
+  - Tag `triage-seed-policy:cinemaz` once applied. Don't reissue the
+    API call every run — only if qBit's live limits no longer match
+    the tag (e.g. the user changed something by hand).
+  - Never pause or remove a CinemaZ torrent while it's in a seeding
+    state, for any reason elsewhere in this document — see Hard
+    limits.
+- **Everything else** (public trackers, and any OTHER `private=true`
+  tracker that isn't cinemaz.to — e.g. c411.org also appears in the
+  indexer list with its own ratio-watch system the user hasn't asked
+  about; don't guess its rules, flag it as an anomaly and leave it
+  alone) — reap fairly aggressively. The user does not want these
+  lingering or competing with CinemaZ for upload bandwidth:
+  - `setShareLimits`: `ratioLimit=0.25`, `seedingTimeLimit=30`
+    (minutes) — whichever trips first. Global `max_ratio_act=1` then
+    auto-removes it from qBit (keeps files) without needing another
+    triage pass to catch it.
+  - Tag `triage-seed-policy:minimal` once applied.
+  - If a public (or non-CinemaZ private) torrent is ever holding an
+    active-upload slot while a CinemaZ torrent is queued/stalled for
+    lack of one, that's the policy failing at its one job — pause the
+    other torrent immediately and note it in Anomalies.
 
 ### Radarr-side (missing movies)
 - **Per-movie fresh search** — POST `/api/v3/command` with
@@ -112,6 +182,10 @@ Tags are your only state between runs. Keep it minimal:
   `triage-paused` epoch is when.
 - `triage-resumed:<epoch>` — you resumed a previously-paused torrent
   at <epoch>, giving it another chance to make progress.
+- `triage-seed-policy:<cinemaz|minimal>` — the seeding policy you've
+  applied to a finished/seeding torrent (see Seeding policy above).
+  Set once; only touch again if qBit's live share limits have drifted
+  from what the tag claims.
 
 When you act: update the relevant tag to the current epoch. Remove
 `triage-paused` when you resume; remove `triage-resumed` when you
@@ -180,6 +254,23 @@ You have full context. Weigh it per item.
   Flowers of the world live on Karagarga or PTP, not CinemaZ. No
   profile switch fixes that. Note them, don't churn.
 
+### Seeding
+- **Classify before you touch anything.** `private` + `tracker` host
+  tell you everything — don't infer policy from category/tags/size.
+- **CinemaZ gets the long runway, no exceptions.** 61 days minimum,
+  ratio-cutoff disabled. If a CinemaZ torrent already has tighter
+  limits (leftover from before this policy existed, or the global
+  default), that's exactly the hit-and-run bug the user is hitting —
+  fix it on sight, don't wait for it to look "stuck".
+- **Everything else gets reaped fast, on purpose.** Not a bug, not
+  overly cautious — the user explicitly wants public (and unrecognized
+  private) trackers cut off quickly so they never sit on an
+  active-upload slot that a CinemaZ torrent could use instead.
+- **This pass is idempotent-first.** If a torrent already carries the
+  correct `triage-seed-policy` tag and its live limits match, skip
+  it — don't re-issue API calls every 4 hours for torrents that are
+  already in the right state.
+
 ### General
 - **Watch for system-level patterns.** If a lot of unrelated torrents
   are stalled at once, OR many missing movies suddenly have zero
@@ -216,6 +307,13 @@ note it". A torrent or a missing movie can wait 4 more hours.
   `docker-compose.yml`, `.env`, `Caddyfile`, or any service config.
   You may change a movie's *assigned* `qualityProfileId`, but never
   the profiles' contents.
+- Never pause or remove a CinemaZ torrent (`private=true`, tracker
+  host `cinemaz.to`) while it is in a seeding state, for any reason
+  in this document. The only allowed action on it is `setShareLimits`
+  / `topPrio` per the Seeding policy above.
+- Never apply the "minimal" reap policy to a `private=true` tracker
+  other than cinemaz.to without flagging it as an anomaly first — its
+  ratio rules are unknown, don't guess.
 
 ## Output — report to stdout
 
@@ -246,6 +344,9 @@ RAW markdown, no code fence, no preamble. Structure:
   - Radarr profile switches (→ RobDifficult): N
   - Per-movie searches triggered: N
   - Override-grabs: N
+  - Seed-policy set (CinemaZ, 61d protected): N
+  - Seed-policy set (minimal, reaped): N
+  - Reaped from qBit (deleteFiles=false): N
 
 If a section has no items, write "_none_" on its own line. Keep
 bullets terse — one line each. No tables — mobile readers.
