@@ -1,0 +1,37 @@
+# Triage run — 2026-08-02T02:00:00Z
+
+**Reviewed:** 26 torrents · 41 missing movies · 10 recent prompts
+
+## Actions taken
+- **Mad Max: Fury Road** — Removed from qBit (orphaned): user explicitly deleted from Radarr, torrent was still seeding on public tracker. `deleteFiles=false`, media already cleaned by earlier bot interaction.
+- **The Revenant PROPER** — Removed from qBit (orphaned): same as Mad Max — user deleted from Radarr hours ago, torrent was left seeding.
+- **The Stranger (2025, Ozon)** — Cinemaz seed policy applied: newly-completed cinemaz torrent was running at global defaults (ratio_lim=-2 / seed_lim=-2), vulnerable to hit-and-run penalties. Set ratioLimit=-1 (never auto-stop on ratio), seedingTimeLimit=87840 (61d), topPrio, tagged `triage-seed-policy:cinemaz`.
+- **Ida (2013)** — Minimal seed policy applied: ratio 0.637 (already above 0.25), seed time 1h26m. Set ratioLimit=0.25, seedingTimeLimit=30min → qBit auto-reaped immediately.
+- **Interstellar (2014)** — Minimal seed policy applied: ratio 0.383 (above 0.25), seed time 16h32m. Set limits → qBit auto-reaped.
+- **Arrival (2016)** — Minimal seed policy applied: ratio 0.236 (approaching 0.25), seed time 18h44m (well above 30min). Set limits → qBit auto-reaped.
+- **Mother Courage and Her Children** — Per-movie search triggered: 12 days monitored + missing on Rob1080, never grabbed once. Search returned 0 reports — likely not available on CinemaZ. Close to 14d escalation threshold; will re-evaluate next run.
+
+## Considered but rejected
+- **Krabat (2008)** — Profile switch to RobDifficult: rejected. The torrent already exists in qBit (cinemaz, completed), but Radarr history shows it was "Manually ignored" on Jul 30 — German-only audio with no English track. No profile change fixes this; the release itself is a dud for this household.
+- **Mother Courage — profile switch to RobDifficult**: too early at 12d (threshold is 14d). Triggered a fresh search instead to see if RSS just hasn't covered it. Next run if still missing.
+- **19 missing movies already on RobDifficult** — Profile switch: N/A, already at the most permissive profile. These are genuinely unfindable on CinemaZ (rare/arthouse titles like Life Is Sweet, Rescue Dawn, Atanarjuat). Zero history for most. Noted in anomalies.
+- **4-day-old Vláčil/Herzog/DAU batch (15 movies)** — Profile switch or search: too fresh. Added Aug 1, need minimum 14 days patience per policy.
+
+## Anomalies
+- **20 movies already on RobDifficult, 100+ days missing with zero grab history.** This isn't a profile problem — CinemaZ simply doesn't carry these. Titles include Who's That Knocking at My Door (1968), O.C. and Stiggs (1987), Rescue Dawn (2007), Atanarjuat (2002), Black Robe (1991), Redoubt (2026), Tuner (2026). Not actionable via Radarr; would need indexer expansion (Karagarga, PTP) to find these.
+- **Mother Courage (1961)** — TMDB 286917, IMDb tt0054106. 12 days monitored, zero releases ever found. Rare German TV adaptation of Brecht. If still missing at 14d, won't be solvable by RobDifficult — the problem is coverage, not quality profile.
+- **Isolated general outage:** No evidence this run. All CinemaZ torrents seeding normally. Both active downloads making good progress (H Is for Hawk 72%, Blue Collar 57%).
+
+## Summary
+- Paused: 0
+- Resumed: 0
+- Removed + blocklisted: 0
+- Removed from qBit (orphaned/minimal reap): 5 (Mad Max, The Revenant, Ida, Interstellar, Arrival)
+- Priority-boosted: 0 (The.Stranger topPrio set via cinemaz policy)
+- MissingFiles cleaned: 0 (no errors found)
+- Radarr profile switches (→ RobDifficult): 0
+- Per-movie searches triggered: 1 (Mother Courage)
+- Override-grabs: 0
+- Seed-policy set (CinemaZ, 61d protected): 1 (The.Stranger)
+- Seed-policy set (minimal, reaped): 3 (Ida, Interstellar, Arrival — auto-reaped by qBit daemon after limits tripped)
+- Reaped from qBit (deleteFiles=false): 5 total

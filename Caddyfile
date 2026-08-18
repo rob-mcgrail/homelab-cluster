@@ -97,3 +97,9 @@ pihole.{$DOMAIN} {
 tv.{$DOMAIN} {
 	reverse_proxy tv:8000
 }
+
+lifts.{$DOMAIN} {
+	# Not a compose service in this stack — runs from its own compose
+	# project (~/lifts) on the host, port 4760. LAN-only, same as pihole.
+	reverse_proxy host.docker.internal:4760
+}
