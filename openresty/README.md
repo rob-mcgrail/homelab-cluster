@@ -11,7 +11,8 @@ Stripping HEVC from the advertised device profile forces Jellyfin to pick H.264 
 ## Architecture
 
 - `jellyfin.{DOMAIN}` → Caddy → `jellyfin:8096` (unchanged, direct)
-- `jellyfin-force-transcode.{DOMAIN}` → Caddy → `jellyfin-proxy:8096` (openresty) → `jellyfin:8096`
+- `jellyfin-force-transcode.{DOMAIN}` → Caddy → `jellyfin-proxy:8096` (openresty) → `jellyfin:8096` — **LAN-only**
+- `jf-ext.{DOMAIN}` → Caddy → `jellyfin:8096` (direct) — the public, tunnelled alias. **Does not go through this proxy**; remote clients negotiate their own profile. (It pointed at `jellyfin-proxy` until Aug 2026.)
 - Host LAN `:8096` → `jellyfin:8096` (unchanged, direct)
 
 Point a specific client at the force-transcode subdomain to opt it into transcoding; all others keep direct-playing whatever works. Zero impact on clients that aren't pointed at the subdomain.
@@ -34,7 +35,9 @@ It rewrites the body and `proxy_pass`es upstream to Jellyfin with the modified p
 
 3. **Schema drift is a silent failure.** If Jellyfin ever renames `VideoCodec` or restructures `DeviceProfile`, the filter silently no-ops and HEVC stutter returns. Not a hard break, but worth knowing. First sign: `docker logs -f jellyfin-proxy` stops showing lua errors that previously logged HEVC removal.
 
-4. **Location ordering matters.** nginx regex locations match in order of definition. If adding a new `location ~` block that could also match `/Items/*/PlaybackInfo`, make sure the filter block comes first, or the filter will never run.
+4. **The upstream must be a variable, or nginx caches the IP forever.** `proxy_pass http://jellyfin:8096` (bare hostname) resolves the name **once at config load** and never again — the moment a `docker compose up -d` gives the jellyfin container a new IP, every request 502s with `connect() failed (111: Connection refused)` to the old address. This bit us in Aug 2026. `default.conf` therefore uses `resolver 127.0.0.11` (Docker's embedded DNS) with `set $jellyfin jellyfin;` and `proxy_pass http://$jellyfin:8096$request_uri;`. The `$request_uri` suffix is required: a variable `proxy_pass` drops nginx's implicit URI pass-through, so without it every path collapses to `/`. Don't "simplify" this back to a literal.
+
+5. **Location ordering matters.** nginx regex locations match in order of definition. If adding a new `location ~` block that could also match `/Items/*/PlaybackInfo`, make sure the filter block comes first, or the filter will never run.
 
 ## Extending
 

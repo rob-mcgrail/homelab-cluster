@@ -247,7 +247,11 @@ curl -s -X POST -H "Content-Type: application/json" "$TV_URL/api/channels/bulk" 
 
 Openresty sidecar that rewrites `PlaybackInfo` on the `jellyfin-force-transcode.{DOMAIN}` subdomain to force HEVC transcoding for clients whose decoders stutter on real HEVC (Android TV). See `openresty/README.md` for the why, architecture, and gotchas.
 
-`jellyfin-force-transcode.{DOMAIN}` itself stays **LAN-only** (resolves to `${LAN_IP}` via the wildcard; also pinned as a Pi-hole local DNS record). For remote access there's a separate public alias, **`jf-ext.{DOMAIN}`**, which has its own Caddy block pointing at the same `jellyfin-proxy:8096` origin and is exposed through the cloudflared tunnel (ingress rule in `/etc/cloudflared/config.yml` → `https://localhost:443` → Caddy's `jf-ext` block). Point a remote Android TV client at `jf-ext` to get forced H.264 transcoding when away from home. Unlike `www` it has **no cookie gate** — a native Jellyfin client can't do the LAN cookie-mint flow — so it relies solely on Jellyfin's own login. Plain `jellyfin.{DOMAIN}` is not tunnelled either.
+`jellyfin-force-transcode.{DOMAIN}` itself stays **LAN-only** (resolves to `${LAN_IP}` via the wildcard; also pinned as a Pi-hole local DNS record).
+
+For remote access there's a separate public alias, **`jf-ext.{DOMAIN}`**, exposed through the cloudflared tunnel (ingress rule in `/etc/cloudflared/config.yml` → `https://localhost:443` → Caddy's `jf-ext` block). It proxies **plain `jellyfin:8096`, not `jellyfin-proxy`** — remote clients get whatever their own device profile negotiates, and the HEVC force-transcode behaviour is LAN-only. (It pointed at `jellyfin-proxy` until Aug 2026.) Unlike `www` it has **no cookie gate** — a native Jellyfin client can't do the LAN cookie-mint flow — so it relies solely on Jellyfin's own login. Plain `jellyfin.{DOMAIN}` is not tunnelled either.
+
+**Gotcha — stale upstream IP:** openresty's `proxy_pass` uses a `$jellyfin` variable plus `resolver 127.0.0.11` precisely so it re-resolves at runtime. With a bare `proxy_pass http://jellyfin:8096` nginx resolves the name **once at config load** and caches the IP forever — so any later `docker compose up -d` that moves the jellyfin container to a new IP leaves the proxy dialling a dead address and everything 502s (`connect() failed (111: Connection refused)`). Don't revert that to a literal hostname.
 
 ## LED display
 

@@ -16,6 +16,7 @@ const SERVICES = [
   { host: 'ha',                       name: 'Home Assistant',              desc: 'Floodlights, sirens, automations' },
   { host: 'pihole',                   name: 'Pi-hole',                     desc: 'Network-wide DNS ad-blocker', path: '/admin/' },
   { host: 'auth.www',                 name: 'Auth',                        desc: 'Mint a fresh access cookie (do before leaving the LAN)' },
+  { host: 'lifts',                    name: 'Lifts',                       desc: 'Lifting tracker (separate repo: ~/lifts)' },
 ];
 
 const DOMAIN = 'office-computer-online-worldwide.org';
