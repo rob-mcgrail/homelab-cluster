@@ -2,7 +2,6 @@ import historyPanel from './panels/history.js';
 import mainPanel from './panels/main.js';
 import torrentsPanel from './panels/torrents.js';
 import statusPanel from './panels/status.js';
-import piholePanel from './panels/pihole.js';
 import recsPanel from './panels/recs.js';
 import linksPanel from './panels/links.js';
 import doubleFeaturesPanel from './panels/double-features.js';
@@ -28,17 +27,7 @@ window.fetch = function(input, init = {}) {
   return p;
 };
 
-// Runtime config is inlined into the HTML by the server (see server.ts's
-// index.html mutator) so we don't have to await /api/config at module
-// top-level. That fetch was blocking the entire module — and therefore
-// initial paint — until it resolved. With the config sitting on window
-// already, panel mount runs synchronously.
-const cfg = (typeof window !== 'undefined' && window.__DASHBOARD_CONFIG__) || { piholePanel: 'off' };
-
-const basePanels = [filmReviewsPanel, doubleFeaturesPanel, recsPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, youtubePanel, ledPanel, linksPanel, dockerPanel];
-const panels = cfg.piholePanel && cfg.piholePanel !== 'off'
-  ? [...basePanels, piholePanel]
-  : basePanels;
+const panels = [filmReviewsPanel, doubleFeaturesPanel, recsPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, youtubePanel, ledPanel, linksPanel, dockerPanel];
 setPanels(panels.length);
 
 const PAGES = panels.length;

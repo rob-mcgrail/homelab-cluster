@@ -2,7 +2,7 @@
 
 Docker Compose stack for a home media server with a mobile-first dashboard and an AI-powered movie bot.
 
-**Services:** Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Navidrome (music streaming), Home Assistant (Reolink cameras + floodlight automation), Pi-hole (network-wide DNS + ad-blocking + optional DHCP), Caddy (reverse proxy), jellyfin-proxy (HEVC force-transcode shim), Dashboard (Movie Bot + ad-hoc YouTube grab panel), tv (IPTV playlist manager)
+**Services:** Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent, Bazarr, Navidrome (music streaming), Home Assistant (Reolink cameras + floodlight automation), Caddy (reverse proxy), jellyfin-proxy (HEVC force-transcode shim), Dashboard (Movie Bot + ad-hoc YouTube grab panel), tv (IPTV playlist manager)
 
 ## What it does
 
@@ -130,7 +130,6 @@ The repo includes exported settings for all services (quality profiles, naming c
 This restores:
 - **Radarr/Sonarr** — custom formats, quality profiles, quality definitions, root folders, naming
 - **qBittorrent** — preferences, categories
-- **Pi-hole** — adlists, static DHCP leases, DNS upstreams (requires `PIHOLE_URL` and `FTLCONF_webserver_api_password` in `.api_keys`)
 
 After restoring, you'll need to manually:
 - Re-enter download client passwords in Sonarr/Radarr
@@ -171,47 +170,42 @@ Add to your crontab (`crontab -e`):
 - **`run-reviews.sh`** — Monday at 04:00 UTC, writes one deep film-criticism review (DeepSeek V4 Pro) of a randomly drawn Jellyfin "Films" title via a two-pass writer→revision flow. Output lands in `movie-bot-data/reviews/`. See `movie-bot-reviews/`.
 - **`process-commission-queue.sh`** — every minute, drains the dashboard's review-commission queue, spawning `commission-review.sh` (DeepSeek V4 Pro, same two-pass flow) per queued film. No pi call on an empty queue.
 
-### 9. Pi-hole (optional but recommended)
+### 9. DNS
 
-Pi-hole comes up with the rest of the stack and **already blocks ads across any client pointed at it for DNS**. The steps below are to actually route your LAN through it.
+There is no local DNS server in this stack. LAN clients and the host both resolve
+against Cloudflare directly:
 
-**Default topology:** router does DHCP, Pi-hole does DNS. The server itself is on a static IP via netplan so it doesn't depend on DHCP at all — see `docs/orbi-dhcp-mysteries.md` for the rationale.
+- **Router (Orbi) DHCP-pushed DNS:** `1.1.1.2` / `1.0.0.2` — Cloudflare's
+  malware-filtering pair.
+- **The server itself:** `1.1.1.1` / `1.0.0.1` on `eno1`, set via a netplan
+  drop-in at `/etc/netplan/99-dns.yaml`.
 
-**Networking model:**
+The server uses the *unfiltered* pair on purpose. Prowlarr talks to indexer
+domains that a malware-filtering resolver occasionally false-positives, and a
+blocked indexer is indistinguishable from a broken one. LAN clients don't run
+indexers, so they get the filtered pair.
 
-- Runs in `network_mode: host` so DHCP broadcasts (UDP 67) can reach it — bridge mode silently breaks for DHCP. (Only relevant if you move DHCP to Pi-hole; see below.)
-- Binds DNS (`:53`) only to specific interface IPs (`${LAN_IP}`, loopback, link-local v6), not `0.0.0.0` — this avoids conflict with Ubuntu's systemd-resolved on `127.0.0.53:53`. Host processes keep using resolved; LAN clients hit Pi-hole.
-- Web UI runs on `:7001` (changed from default `:80` to keep out of Caddy's way); Caddy reverse-proxies to it at `https://pihole.{DOMAIN}/admin/`.
+The point of this split is that **nothing on the LAN depends on this box for name
+resolution**. Rebooting the server, or the router coming up before the server
+does, can't take DNS down with it.
 
-**Route your LAN through Pi-hole for DNS:**
+The server is on a static IP via netplan so it doesn't depend on DHCP either —
+see `docs/orbi-dhcp-mysteries.md` for that history.
 
-In your router's admin UI, set the DHCP-pushed DNS to `${LAN_IP}` (the IP of this box). If your router insists on two DNS entries, **duplicate** the same IP — don't add `1.1.1.1` as secondary, or clients will silently leak past Pi-hole on timeouts.
-
-Devices pick up the new DNS on their next DHCP renewal. Toggle Wi-Fi on a client to force it immediately.
-
-**Android gotcha:** each phone's *Settings → Network & Internet → Private DNS* must be **Off** or **Automatic**. Any other value (dns.google, 1dot1dot1dot1.cloudflare-dns.com) tunnels DNS over TLS past Pi-hole.
-
-**Recovery if Pi-hole dies** and DNS goes out for the whole LAN: set your router's DHCP-pushed DNS back to a public resolver (`1.1.1.1`). Takes ~30 seconds, buys time to debug.
-
-#### Optional: move DHCP to Pi-hole
-
-Pi-hole can also serve DHCP. The reason to consider it: Pi-hole can only attribute DNS queries to *hostnames* (rather than just IPs) if it's also issuing the leases. Moving DHCP to Pi-hole gives you per-client labels in the query log and the dashboard's Clients panel.
-
-Trade-offs worth knowing before you switch (detail in `docs/orbi-dhcp-mysteries.md`):
-
-1. **Turn off router DHCP first.** Two DHCP servers on one L2 is a race.
-2. **The server becomes both DHCP server and DHCP client.** If it loses its lease and can't renew (it's asking itself for one), it gets stuck in a chicken-and-egg. The fix is a static IP on `eno1` via netplan — already done in this setup.
-3. **Some devices (e.g. Orbi mesh satellites) reject DHCPACKs whose `server-identifier` isn't the router's IP.** Symptom: device won't come online. Mitigation: force the server-id via `dhcp-option-force=option:server-identifier,<router-ip>` and reserve that device's MAC.
-
-To enable:
-
-1. In Pi-hole admin (`https://pihole.{DOMAIN}/admin/settings/dhcp`), enable DHCP with the same range your router was using (typically `192.168.1.2`–`192.168.1.254`, router/gateway `192.168.1.1`, netmask `255.255.255.0`, lease `24h`).
-2. Recreate any static leases in *Static DHCP leases*. Via CLI:
-   ```sh
-   docker exec pihole pihole-FTL --config dhcp.hosts '["AA:BB:CC:DD:EE:FF,192.168.1.33,SERVER"]'
-   ```
-3. In the router: disable its DHCP server.
-4. Toggle Wi-Fi on one device to verify it gets a lease from Pi-hole. If something breaks: re-enable router DHCP and disable Pi-hole DHCP — you're back where you started in under 30 seconds.
+> **Pi-hole ran here until Aug 2026.** It was removed rather than fixed. Two
+> reasons. First, it had quietly become a single point of failure:
+> `systemd-resolved`'s upstream was pointed at `127.0.0.1`, so the whole box lost
+> DNS whenever the container was down. Second, it was doing nothing — its last
+> seven days of query logs held 484k queries and every single one came from
+> `127.0.0.1`. No LAN client had ever been pointed at it, so it blocked ads for
+> nobody and only resolved this server's own lookups. Its config still sits in
+> `config/pihole/` if it's ever wanted back.
+>
+> If you do bring it back, don't split the router's two DNS slots between Pi-hole
+> and a public resolver as a "failover". DHCP-supplied resolvers aren't
+> primary/secondary — clients query whichever they like, so blocking goes
+> half-effective and an outage still costs you timeouts rather than a clean
+> switch. Failover only works when both resolvers give the same answers.
 
 ## Accessing services
 
@@ -229,7 +223,6 @@ All services are available via HTTPS at `<service>.yourdomain.org`:
 | Bazarr | `https://bazarr.yourdomain.org` |
 | Navidrome | `https://navidrome.yourdomain.org` |
 | Home Assistant | `https://ha.yourdomain.org` |
-| Pi-hole | `https://pihole.yourdomain.org/admin` |
 | tv (IPTV playlist manager) | `https://tv.yourdomain.org` (UI), `https://tv.yourdomain.org/playlist.m3u` (IPTV endpoint) |
 
 Services are also available on their original ports via IP for direct access.
@@ -247,16 +240,6 @@ The dashboard is a mobile-first web app at `https://www.yourdomain.org` with 9 s
 7. **Floodlights** (coral, fox) — Reolink floodlight cam controls via Home Assistant: per-cam + "All" toggles, live MJPEG previews of each cam (tap for fullscreen HD), recent motion-triggered HD clips (paired by event, side-by-side playback), a two-tap **PANIC** button (lights + sirens), and a single-tap **SILENCE SIRENS** button to undo the siren part. See `homeassistant/NOTES.md` for the recording pipeline + presence-aware skip logic.
 8. **YouTube** (lavender, clouds) — paste a YouTube URL, watch it land in the Kids TV library. Posts to `/api/youtube-grab`, which fire-and-forget spawns `scripts/youtube-grab.sh` (yt-dlp inside the dashboard container; serialized via `flock` so concurrent submissions queue up rather than racing). Output lands at `/data/media/kids/youtube/<Channel>/<Title> [<id>].{mp4,nfo,info.json}` plus `<...>-thumb.jpg`; per-channel `tvshow.nfo` + `poster.jpg` + `fanart.jpg` are written on first video. NFOs use the `<episodedetails>` / `<tvshow>` schema so each channel surfaces as a Jellyfin TV show with its YouTube videos as episodes. The script is also runnable from the host CLI for one-off use.
 9. **Services** (yellow, bees) — quick links to all service dashboards
-
-#### Optional: Pi-hole panel
-
-A red-themed Pi-hole panel (skulls + bats) can be appended to the swipeable list via the `PIHOLE_PANEL` env var on the dashboard service. Values:
-
-- `off` (default) — panel hidden.
-- `blocks` — top 20 blocked domains in the last 24h. Works with any DHCP topology.
-- `clients` — per-client allowed/blocked counts. Only useful when Pi-hole itself is the DHCP server and can see individual client IPs; under the default topology (router does DHCP, DNS is proxied through a single IP) all queries look like they come from the router, so this view is empty.
-
-Change the value in `docker-compose.yml` and `docker compose up -d dashboard` to apply.
 
 ## Storage
 
@@ -376,17 +359,18 @@ https://www.{DOMAIN}
 - **Without a cookie:** browser bounces to `auth.www.{DOMAIN}` which doesn't resolve to anything routable from outside — you get a connection error. That's the gate working as intended.
 - **With a cookie** (mint one first by visiting `auth.www.{DOMAIN}` from the LAN): dashboard loads normally over the tunnel.
 
-#### 8. (Recommended) Keep LAN dashboard traffic local
+#### 8. A note on LAN dashboard traffic
 
-After step 4, every DNS resolver — including Pi-hole's upstream — sends `www.{DOMAIN}` to the tunnel. LAN browsers still reach the dashboard, but their traffic round-trips through Cloudflare before coming back to your house. Functionally fine; latency-wise wasteful.
+After step 4, every DNS resolver sends `www.{DOMAIN}` to the tunnel — so a LAN
+browser's dashboard traffic round-trips through Cloudflare and back into the
+house. Functionally fine, latency-wise wasteful.
 
-In Pi-hole admin → Settings → Local DNS Records, add:
-
-```
-www.{DOMAIN}    {LAN_IP}
-```
-
-Internal queries are then answered directly with your LAN IP, bypassing the tunnel. External queries still hit Cloudflare and the tunnel.
+This used to be solved with a Pi-hole Local DNS Record pointing `www.{DOMAIN}` at
+the LAN IP. With Pi-hole gone there's no local resolver to override the answer,
+so the round-trip is simply accepted. If it ever becomes annoying, the options
+are a `hosts` entry on the machines you care about, or standing up a small
+authoritative resolver again — at which point re-read the failure-mode warning in
+section 9 before making it the only DNS server on the LAN.
 
 ### Extending the gate to other services
 

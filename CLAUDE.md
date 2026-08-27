@@ -119,7 +119,6 @@ Hardlinks only work within a single branch, so both files must physically live o
 | Bazarr      | 6767 |
 | Navidrome   | 4533 |
 | Home Assistant | 8123 |
-| Pi-hole     | 8090 (web), 53 bound to `${LAN_IP}` |
 | tv          | _no host port_ — only via Caddy at `tv.{DOMAIN}` |
 
 ## DNS
@@ -128,17 +127,24 @@ LAN-only split-horizon setup: a single **wildcard** A record in Cloudflare (gray
 
 If the server's LAN IP changes (e.g. switching from wifi to ethernet), the only update needed is that one Cloudflare wildcard A record — all subdomains follow.
 
-## Pi-hole
+**Resolvers.** There is no local DNS server. The Orbi's DHCP hands LAN clients
+`1.1.1.2` / `1.0.0.2` (Cloudflare's malware-filtering pair) and the host resolves
+via `1.1.1.1` / `1.0.0.1` set on `eno1` in netplan. Nothing on the LAN depends on
+this box for name resolution, so a server outage or reboot can't take DNS down
+with it.
 
-Network-wide DNS ad-blocker. Reachable at `https://pihole.{DOMAIN}/admin` (via Caddy) or `http://${LAN_IP}:8090/admin` (direct, fallback).
+The host deliberately uses the *unfiltered* `1.1.1.1` pair rather than `1.1.1.2`:
+Prowlarr's indexer domains are the kind of thing a malware-filtering resolver
+occasionally false-positives, and a blocked indexer looks like a broken indexer.
+LAN clients don't have that problem, so they get the filtered pair.
 
-DNS is bound to `${LAN_IP}:53` only — systemd-resolved stays on loopback (`127.0.0.53`) so host processes still resolve normally. LAN clients point at `${LAN_IP}` via the Orbi's DHCP DNS setting.
-
-Upstream resolvers: `1.1.1.1;1.0.0.1` (Cloudflare). Set via `FTLCONF_dns_upstreams` in the compose file.
-
-Web admin password is in `.api_keys` as `FTLCONF_webserver_api_password` and loaded into the container via `env_file`.
-
-Android-specific notes: each phone's *Private DNS* setting (Settings → Network & Internet) must be **Off** or **Automatic**. Any other value (dns.google, 1dot1dot1dot1.cloudflare-dns.com) bypasses Pi-hole entirely via DoT.
+> Pi-hole ran here until Aug 2026 and was removed. It had become a single point
+> of failure — `systemd-resolved`'s upstream was pointed at `127.0.0.1`, so the
+> whole box lost DNS whenever the container was down — while delivering nothing:
+> its last 7 days of query logs showed 484k queries and **every one of them from
+> `127.0.0.1`**. No LAN client was ever configured to use it, so it was blocking
+> ads for nobody and only resolving this server's own lookups. Config data is
+> still at `config/pihole/` if it's ever wanted back.
 
 ## Home Assistant
 
@@ -247,7 +253,7 @@ curl -s -X POST -H "Content-Type: application/json" "$TV_URL/api/channels/bulk" 
 
 Openresty sidecar that rewrites `PlaybackInfo` on the `jellyfin-force-transcode.{DOMAIN}` subdomain to force HEVC transcoding for clients whose decoders stutter on real HEVC (Android TV). See `openresty/README.md` for the why, architecture, and gotchas.
 
-`jellyfin-force-transcode.{DOMAIN}` itself stays **LAN-only** (resolves to `${LAN_IP}` via the wildcard; also pinned as a Pi-hole local DNS record).
+`jellyfin-force-transcode.{DOMAIN}` itself stays **LAN-only** (resolves to `${LAN_IP}` via the wildcard).
 
 For remote access there's a separate public alias, **`jf-ext.{DOMAIN}`**, exposed through the cloudflared tunnel (ingress rule in `/etc/cloudflared/config.yml` → `https://localhost:443` → Caddy's `jf-ext` block). It proxies **plain `jellyfin:8096`, not `jellyfin-proxy`** — remote clients get whatever their own device profile negotiates, and the HEVC force-transcode behaviour is LAN-only. (It pointed at `jellyfin-proxy` until Aug 2026.) Unlike `www` it has **no cookie gate** — a native Jellyfin client can't do the LAN cookie-mint flow — so it relies solely on Jellyfin's own login. Plain `jellyfin.{DOMAIN}` is not tunnelled either.
 

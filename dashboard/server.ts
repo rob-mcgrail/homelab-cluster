@@ -19,12 +19,7 @@ const YT_GRAB_PENDING_DIR = `${DATA_DIR}/youtube-grabs/pending`;
 const YT_GRAB_COMPLETED_DIR = `${DATA_DIR}/youtube-grabs/completed`;
 const QB_URL = "http://qbittorrent:8080";
 const JELLYFIN_URL = "http://jellyfin:8096";
-const PIHOLE_URL = "http://host.docker.internal:7001";
 const JELLYFIN_API_KEY = process.env.JELLYFIN_API_KEY || "";
-const PIHOLE_PASSWORD = process.env.FTLCONF_webserver_api_password || "";
-const PIHOLE_PANEL_RAW = (process.env.PIHOLE_PANEL || "off").toLowerCase();
-const PIHOLE_PANEL: "off" | "blocks" | "clients" =
-  PIHOLE_PANEL_RAW === "blocks" || PIHOLE_PANEL_RAW === "clients" ? PIHOLE_PANEL_RAW : "off";
 const HASS_URL = process.env.HASS_URL || "http://homeassistant:8123";
 const HASS_TOKEN = process.env.HASS_TOKEN || "";
 
@@ -159,8 +154,6 @@ async function hassFetch(path: string, init: RequestInit = {}): Promise<Response
   });
 }
 
-let piholeSID: string | null = null;
-
 async function readJsonl(path: string): Promise<any[]> {
   const file = Bun.file(path);
   if (!(await file.exists())) return [];
@@ -223,31 +216,6 @@ async function getJellyfinMeta() {
   if (!filmsLibId) throw new Error("jellyfin: 'Films' library not found");
   jellyfinMeta = { userId, filmsLibId };
   return jellyfinMeta;
-}
-
-async function piholeAuth() {
-  const res = await fetch(`${PIHOLE_URL}/api/auth`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password: PIHOLE_PASSWORD }),
-  });
-  if (!res.ok) throw new Error(`pihole auth failed: ${res.status}`);
-  const data: any = await res.json();
-  piholeSID = data?.session?.sid || null;
-  if (!piholeSID) throw new Error("pihole auth returned no session id");
-}
-
-async function piholeGet(path: string): Promise<any> {
-  if (!piholeSID) await piholeAuth();
-  const doFetch = () =>
-    fetch(`${PIHOLE_URL}${path}`, { headers: { "X-FTL-SID": piholeSID as string } });
-  let res = await doFetch();
-  if (res.status === 401) {
-    await piholeAuth();
-    res = await doFetch();
-  }
-  if (!res.ok) throw new Error(`pihole GET ${path} failed: ${res.status}`);
-  return res.json();
 }
 
 function ticksToMs(t: number): number {
@@ -647,7 +615,9 @@ const server = Bun.serve({
     }
 
     if (req.method === "GET" && url.pathname === "/api/config") {
-      return Response.json({ piholePanel: PIHOLE_PANEL });
+      // Also serves as the dashboard's auth probe: index.html fetches this
+      // with redirect:"manual" to detect a lapsed cookie.
+      return Response.json({});
     }
 
     if (req.method === "GET" && url.pathname === "/api/floodlights") {
@@ -1005,76 +975,6 @@ const server = Bun.serve({
         return Response.json({ ok: true });
       } catch {
         return new Response("bad request", { status: 400 });
-      }
-    }
-
-    if (req.method === "GET" && url.pathname === "/api/pihole-top-blocked") {
-      try {
-        const from = Math.floor(Date.now() / 1000) - 86400;
-        const data = await piholeGet(`/api/stats/top_domains?blocked=true&count=20&from=${from}`);
-        const rows = (data?.domains || []).map((d: any) => ({
-          domain: d.domain || "",
-          count: d.count || 0,
-        }));
-        return Response.json(rows);
-      } catch {
-        return Response.json([]);
-      }
-    }
-
-    if (req.method === "GET" && url.pathname === "/api/pihole-clients") {
-      try {
-        // last 24h window (FTL's default in-memory retention is also 24h,
-        // but passing from= makes the scope explicit and future-proof)
-        const from = Math.floor(Date.now() / 1000) - 86400;
-        const [permitted, blocked, recent] = await Promise.all([
-          piholeGet(`/api/stats/top_clients?blocked=false&count=30&from=${from}`),
-          piholeGet(`/api/stats/top_clients?blocked=true&count=30&from=${from}`),
-          piholeGet(`/api/queries?length=2000&from=${from}`),
-        ]);
-        const lastSeen = new Map<string, number>();
-        for (const q of (recent?.queries || [])) {
-          const ip = q?.client?.ip;
-          const t = q?.time;
-          if (!ip || !t) continue;
-          const prev = lastSeen.get(ip) || 0;
-          if (t > prev) lastSeen.set(ip, t);
-        }
-        const leases = new Map<string, number>();
-        try {
-          const content = await Bun.file("/pihole/dhcp.leases").text();
-          for (const line of content.split("\n")) {
-            const parts = line.trim().split(/\s+/);
-            if (parts.length < 3) continue;
-            const expiry = +parts[0];
-            const ip = parts[2];
-            if (ip && !isNaN(expiry)) leases.set(ip, expiry);
-          }
-        } catch {}
-        const map = new Map<string, { name: string; ip: string; permitted: number; blocked: number }>();
-        for (const c of (permitted?.clients || [])) {
-          const key = c.ip || c.name;
-          map.set(key, { name: c.name || c.ip, ip: c.ip || "", permitted: c.count || 0, blocked: 0 });
-        }
-        for (const c of (blocked?.clients || [])) {
-          const key = c.ip || c.name;
-          const cur = map.get(key) || { name: c.name || c.ip, ip: c.ip || "", permitted: 0, blocked: 0 };
-          cur.blocked = c.count || 0;
-          map.set(key, cur);
-        }
-        const rows = Array.from(map.values())
-          .filter((r) => r.ip !== "127.0.0.1" && r.ip !== "::1" && r.ip !== "192.168.1.1" && r.name !== "localhost")
-          .map((r) => ({
-            ...r,
-            total: r.permitted + r.blocked,
-            blockedPct: r.permitted + r.blocked > 0 ? Math.round((r.blocked / (r.permitted + r.blocked)) * 100) : 0,
-            lastSeen: lastSeen.get(r.ip) || null,
-            leaseExpiry: leases.get(r.ip) || null,
-          }))
-          .sort((a, b) => b.total - a.total);
-        return Response.json(rows);
-      } catch {
-        return Response.json([]);
       }
     }
 
@@ -1545,9 +1445,6 @@ const server = Bun.serve({
     if (await file.exists()) {
       if (path === "/index.html") {
         let html = await file.text();
-        const cfg = { piholePanel: PIHOLE_PANEL };
-        const inject = `<script>window.__DASHBOARD_CONFIG__ = ${JSON.stringify(cfg)};</script>`;
-        html = html.replace("</head>", `  ${inject}\n</head>`);
         // Cache-bust every local asset URL referenced from the HTML.
         // The build version changes on every server restart, so a buggy
         // edge-cached /app.js can be force-invalidated by a rebuild
