@@ -132,6 +132,18 @@ main { padding: 0.5rem 1rem 4rem; }
 .col-ua { width: 110px; }
 .col-en { width: 50px; text-align: center; }
 .col-test { width: 60px; }
+.drm-badge {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+  background: #4a2b6b;
+  color: #d9c2f0;
+}
+.col-test button[disabled] { opacity: 0.35; cursor: not-allowed; }
 .col-del { width: 40px; }
 
 .grip { cursor: grab; color: var(--text-faint); user-select: none; text-align: center; }

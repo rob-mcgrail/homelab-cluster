@@ -112,19 +112,26 @@ function rowHtml(c) {
     .map(k => `<option value="${k}"${k === c.user_agent ? " selected" : ""}>${k}</option>`)
     .join("");
   const checked = state.selected.has(c.id);
+  // A DRM channel is a DASH manifest plus a Widevine licence server. The
+  // browser test player is hls.js with no EME setup, so it can never play
+  // one — flag the row and disable the button rather than fail silently.
+  const drm = !!c.license_key;
+  const testBtn = drm
+    ? `<button class="btn icon" data-action="test" disabled title="Widevine DRM — the browser test player can't play this. Test it in the IPTV app.">▶</button>`
+    : `<button class="btn icon" data-action="test" title="Open test player">▶</button>`;
   return `
   <tr data-id="${c.id}" class="${c.enabled ? "" : "disabled"}" draggable="true">
     <td class="col-grip grip" aria-hidden="true">⠿</td>
     <td class="col-check"><input type="checkbox" class="row-check" ${checked ? "checked" : ""}></td>
     <td class="col-pos">${c.position}</td>
     <td class="col-logo">${logo}</td>
-    <td class="col-name"><input type="text" data-field="display_name" value="${escapeAttr(c.display_name)}"></td>
+    <td class="col-name"><input type="text" data-field="display_name" value="${escapeAttr(c.display_name)}">${drm ? `<span class="drm-badge" title="Widevine DRM · ${escapeAttr(c.manifest_type || "mpd")}">DRM</span>` : ""}</td>
     <td class="col-group"><input type="text" data-field="group_title" value="${escapeAttr(c.group_title || "")}"></td>
     <td class="col-ua"><select data-field="user_agent">${uaOptions}</select></td>
     <td class="col-en">
       <label class="toggle"><input type="checkbox" data-field="enabled" ${c.enabled ? "checked" : ""}><span class="slider"></span></label>
     </td>
-    <td class="col-test"><button class="btn icon" data-action="test" title="Open test player">▶</button></td>
+    <td class="col-test">${testBtn}</td>
     <td class="col-del"><button class="btn icon danger" data-action="delete" title="Delete">×</button></td>
   </tr>`;
 }

@@ -50,6 +50,19 @@ db.exec(`
 `);
 db.exec("CREATE INDEX IF NOT EXISTS idx_channels_position ON channels(position)");
 
+// Widevine / DRM columns, added after the original schema shipped. Kodi-style
+// playlists (i.mjh.nz/nz/kodi-tv.m3u8, the TVNZ channels) carry these as
+// #KODIPROP lines; a DRM channel is a DASH .mpd URL plus a licence server.
+// Added via ALTER so existing tv.db files migrate in place on boot.
+{
+  const have = new Set(
+    db.query<{ name: string }, []>("PRAGMA table_info(channels)").all().map((r) => r.name)
+  );
+  for (const col of ["manifest_type", "license_type", "license_key"]) {
+    if (!have.has(col)) db.exec(`ALTER TABLE channels ADD COLUMN ${col} TEXT`);
+  }
+}
+
 type Channel = {
   id: number;
   channel_id: string | null;
@@ -64,6 +77,9 @@ type Channel = {
   position: number;
   source_url: string | null;
   imported_at: number | null;
+  manifest_type: string | null;
+  license_type: string | null;
+  license_key: string | null;
 };
 
 type ParsedChannel = {
@@ -75,6 +91,9 @@ type ParsedChannel = {
   original_name: string;
   stream_url: string;
   user_agent: string;
+  manifest_type?: string;
+  license_type?: string;
+  license_key?: string;
 };
 
 // ──────────────────────────────────────────────────────────────
@@ -130,6 +149,18 @@ function parseM3U(text: string): ParsedChannel[] {
     } else if (line.startsWith("#EXTVLCOPT:") && cur) {
       const m = line.match(/http-user-agent\s*=\s*(.*)$/i);
       if (m) cur.user_agent = inferUserAgentKey(m[1].trim());
+    } else if (line.startsWith("#KODIPROP:") && cur) {
+      // Kodi/inputstream.adaptive DRM directives. Only the three we render
+      // are kept; anything else in the KODIPROP namespace is ignored.
+      const kv = line.slice("#KODIPROP:".length);
+      const eq = kv.indexOf("=");
+      if (eq > 0) {
+        const k = kv.slice(0, eq).trim().toLowerCase();
+        const v = kv.slice(eq + 1).trim();
+        if (k === "inputstream.adaptive.manifest_type") cur.manifest_type = v;
+        else if (k === "inputstream.adaptive.license_type") cur.license_type = v;
+        else if (k === "inputstream.adaptive.license_key") cur.license_key = v;
+      }
     } else if (line.startsWith("#")) {
       // ignore other directives (#EXTM3U, #EXTGRP, etc.)
     } else if (cur && cur.display_name !== undefined) {
@@ -186,6 +217,14 @@ function renderM3U(channels: Channel[]): string {
     lines.push(`#EXTINF:-1 ${attrs.join(" ")} , ${c.display_name}`);
     const uaVal = USER_AGENTS[c.user_agent];
     if (uaVal !== null) lines.push(`#EXTVLCOPT:http-user-agent=${uaVal}`);
+    // DRM directives must sit between the #EXTINF and the URL, which is where
+    // inputstream.adaptive (Kodi, TiviMate, OTT Navigator) looks for them.
+    if (c.manifest_type)
+      lines.push(`#KODIPROP:inputstream.adaptive.manifest_type=${c.manifest_type}`);
+    if (c.license_type)
+      lines.push(`#KODIPROP:inputstream.adaptive.license_type=${c.license_type}`);
+    if (c.license_key)
+      lines.push(`#KODIPROP:inputstream.adaptive.license_key=${c.license_key}`);
     lines.push(c.stream_url);
     chno++;
   }
@@ -213,19 +252,26 @@ const stmts = {
   insert: db.prepare(`
     INSERT OR IGNORE INTO channels
       (channel_id, tvg_id, tvg_logo, group_title, display_name, original_name,
-       stream_url, user_agent, enabled, position, source_url, imported_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+       stream_url, user_agent, enabled, position, source_url, imported_at,
+       manifest_type, license_type, license_key)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
   `),
   insertOne: db.prepare(`
     INSERT INTO channels
       (channel_id, tvg_id, tvg_logo, group_title, display_name, original_name,
-       stream_url, user_agent, enabled, position, source_url, imported_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       stream_url, user_agent, enabled, position, source_url, imported_at,
+       manifest_type, license_type, license_key)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `),
   setPosition: db.prepare("UPDATE channels SET position = ? WHERE id = ?"),
   setEnabled: db.prepare("UPDATE channels SET enabled = ? WHERE id = ?"),
   setUserAgent: db.prepare("UPDATE channels SET user_agent = ? WHERE id = ?"),
   deleteById: db.prepare("DELETE FROM channels WHERE id = ?"),
+  // Kept separate from updateFields: COALESCE can't express "clear this
+  // column", and clearing DRM back to a plain HLS channel has to be possible.
+  setDrm: db.prepare(
+    "UPDATE channels SET manifest_type = ?, license_type = ?, license_key = ? WHERE id = ?"
+  ),
   updateFields: db.prepare(`
     UPDATE channels
        SET display_name = COALESCE(?, display_name),
@@ -258,7 +304,10 @@ const importChannels = db.transaction((parsed: ParsedChannel[], sourceUrl: strin
       ua,
       nextPos,
       sourceUrl,
-      now
+      now,
+      p.manifest_type ?? null,
+      p.license_type ?? null,
+      p.license_key ?? null
     );
     if (res.changes > 0) {
       added++;
@@ -388,7 +437,10 @@ Bun.serve({
           enabled,
           position,
           body.source_url ?? "manual",
-          now
+          now,
+          body.manifest_type ?? null,
+          body.license_type ?? null,
+          body.license_key ?? null
         );
         const row = stmts.byId.get(Number(res.lastInsertRowid));
         return json(row, 201);
@@ -424,6 +476,17 @@ Bun.serve({
           body.channel_id ?? null,
           id
         );
+        // DRM fields: only touched when the caller mentions one. Passing an
+        // empty string (or null) clears that column back to plain-HLS.
+        const drmKeys = ["manifest_type", "license_type", "license_key"] as const;
+        if (drmKeys.some((k) => k in body)) {
+          const cur = stmts.byId.get(id);
+          if (!cur) return json({ error: "not found" }, 404);
+          const next = drmKeys.map((k) =>
+            k in body ? (body[k] ? String(body[k]).trim() : null) : cur[k]
+          );
+          stmts.setDrm.run(next[0], next[1], next[2], id);
+        }
         const row = stmts.byId.get(id);
         if (!row) return json({ error: "not found" }, 404);
         return json(row);

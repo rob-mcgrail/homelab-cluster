@@ -210,11 +210,44 @@ Self-hosted IPTV playlist manager at `tv.{DOMAIN}`. Replaces the previous `tv-fi
 
 To add another preset, edit `USER_AGENTS` in `tv/server.ts` — both the API validation and the dropdowns derive from that map.
 
+**Widevine / DRM channels:** three nullable columns — `manifest_type`,
+`license_type`, `license_key` — carry Kodi-style DRM config. When `license_key`
+is set, the renderer emits `#KODIPROP:` lines between the `#EXTINF` and the URL,
+which is where `inputstream.adaptive` (Kodi, TiviMate, OTT Navigator) looks:
+
+```
+#EXTINF:-1 … , TVNZ 1
+#EXTVLCOPT:http-user-agent=otg/1.5.1 (AppleTv …)
+#KODIPROP:inputstream.adaptive.manifest_type=mpd
+#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
+#KODIPROP:inputstream.adaptive.license_key=https://c.mjh.nz/tvnz-1-wv
+https://i.mjh.nz/.r/tvnz-1.mpd
+```
+
+TVNZ 1, TVNZ 2 and DUKE moved to DRM-protected DASH (Aug 2026) — their configs
+come from `https://i.mjh.nz/nz/kodi-tv.m3u8`, which the importer now parses
+`#KODIPROP` out of, so re-importing that feed carries DRM config through.
+
+Set them on an existing channel with a PATCH; pass `""` to clear a field back to
+plain HLS:
+
+```sh
+curl -s -X PATCH -H "Content-Type: application/json" "$TV_URL/api/channels/1" \
+  -d '{"stream_url":"https://i.mjh.nz/.r/tvnz-1.mpd","user_agent":"appletv",
+       "manifest_type":"mpd","license_type":"com.widevine.alpha",
+       "license_key":"https://c.mjh.nz/tvnz-1-wv"}'
+```
+
+Two things to know. **VLC cannot play these at all** — no Widevine. And the
+player app must be DRM-capable; a plain M3U player will just fail on the `.mpd`.
+The dashboard marks DRM rows with a `DRM` badge and disables their test-player
+button, because hls.js has no EME setup and could never play one.
+
 **Import semantics:** POST `/api/import {url}` (or `{m3u}`) fetches and parses, then inserts new channels by `stream_url`. Re-importing the same feed is a no-op — existing rows are left alone so renames / UA picks / disabled flags survive refreshes. Returns `{parsed, added, skipped}`.
 
 **Reorder:** `position` is a contiguous 1..N sort key. The drag-drop UI POSTs `/api/channels/reorder {order: [id,…]}` which rewrites positions in a single transaction. The rendered M3U emits `tvg-chno` equal to position, so the playlist's channel numbers reflect the UI order.
 
-**Test player:** `GET /play?url=…&name=…` returns an HTML page with hls.js loading the stream. Important caveat: browsers cannot send custom User-Agent headers on media requests, so a stream that's UA-gated upstream (most of the i.mjh.nz / mjh feeds aren't, but some are) may fail in the test player even when VLC / AppleTV can play it fine. The test player is a "is the URL alive and HLS-shaped?" check, not an end-to-end UA validation.
+**Test player:** `GET /play?url=…&name=…` returns an HTML page with hls.js loading the stream. Important caveat: browsers cannot send custom User-Agent headers on media requests, so a stream that's UA-gated upstream (most of the i.mjh.nz / mjh feeds aren't, but some are) may fail in the test player even when VLC / AppleTV can play it fine. The test player is a "is the URL alive and HLS-shaped?" check, not an end-to-end UA validation. DRM channels are excluded from it entirely (see above).
 
 **API quick-ref** (no auth — relies on Caddy LAN-only exposure):
 
