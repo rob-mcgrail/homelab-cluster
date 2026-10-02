@@ -1,22 +1,17 @@
 #!/bin/bash
-# Ambient LED curator — occasionally surfaces one genuinely-interesting news
-# item OR a great quote/aphorism on the LCD. Runs from cron every 5 min;
-# each run:
+# Ambient LED news curator — occasionally surfaces one genuinely-interesting
+# news headline on the LCD. Runs from cron every 5 min; each run:
 #   1. only proceeds during Rob's waking hours (NZ local, DST-aware)
-#   2. randomly gates itself so it fires ~8/hour on average
-#   3. picks a mode ~50/50: news vs quote
-#   4. news mode fetches RSS headlines; a pi (LLM) call curates ONE crisp
-#      <=64-char line, is allowed to return SKIP if nothing clears the bar,
-#      (no colour — see below)
-#   5. quote mode asks pi for one real, attributed aphorism/quote (great
-#      aphorists + Mao/Lenin), no attribution, never skips.
+#   2. randomly gates itself so it fires ~4/hour on average
+#   3. fetches RSS headlines; a pi (LLM) call curates ONE crisp <=64-char
+#      line, and is allowed to return SKIP if nothing clears the bar
 #   The LED colours every message with the CURRENT TARIFF BAND (esp-tou v7+):
 #   the payload sends no colour, so the device uses green/amber/red itself.
-#   6. posts LED-only (push:false) to the dashboard's /api/event, which is
+#   4. posts LED-only (push:false) to the dashboard's /api/event, which is
 #      the sole egress to the device
 #
 # Flags (for manual testing): --now (skip time+rate gates), --dry (print,
-# don't post), --news / --quote (force the mode).
+# don't post).
 #
 # Cron: */5 * * * * /home/rob/homelab-cluster/news-led/run-news-led.sh
 
@@ -32,10 +27,8 @@ mkdir -p "$STATE_DIR"
 WAKE_START=7            # NZ local hour: start of waking window (inclusive)
 WAKE_END=23            # NZ local hour: end of waking window (exclusive)
 ATTEMPTS_PER_HOUR=12   # cron fires every 5 min => 12 attempts/hour
-TARGET_SHOWS_PER_HOUR=8 # aim ~8 shown/hour (recycling allowed — see prompts)
-QUOTE_PCT=50           # ~50/50 split: chance a fire is a quote vs news
+TARGET_SHOWS_PER_HOUR=4 # aim ~4 shown/hour (recycling allowed — see prompt)
 NEWS_TTL=25            # seconds the LED holds a news line
-QUOTE_TTL=30          # quotes get a touch longer to read
 # Colour is not set here — the LED shows each message in the current tariff-band
 # colour (green/amber/red), because the payload sends no colour (esp-tou v7+).
 MODEL="deepseek/deepseek-v4-flash"
@@ -51,13 +44,11 @@ FEEDS=(
 )
 
 # ---- flags ------------------------------------------------------------------
-FORCE=0; DRY=0; FORCE_MODE=""
+FORCE=0; DRY=0
 for a in "$@"; do
   case "$a" in
     --now)   FORCE=1 ;;
     --dry)   DRY=1 ;;
-    --news)  FORCE_MODE="news" ;;
-    --quote|--aphorism) FORCE_MODE="quote" ;;
   esac
 done
 
@@ -82,14 +73,9 @@ fi
 echo $$ > "$LOCK"
 trap 'rm -f "$LOCK"' EXIT
 
-# ---- pick mode --------------------------------------------------------------
-if [ -n "$FORCE_MODE" ]; then
-  MODE="$FORCE_MODE"
-elif (( RANDOM % 100 < QUOTE_PCT )); then
-  MODE="quote"
-else
-  MODE="news"
-fi
+# Single mode now (quotes were dropped Oct 2026); MODE stays in the log lines
+# and recent.jsonl rows so older history keeps parsing the same way.
+MODE="news"
 
 # Recently-shown lines of the same mode, for the "don't repeat" context.
 recent_block() {
@@ -120,18 +106,11 @@ PI="$(command -v pi 2>/dev/null || ls -1 "$HOME"/.nvm/versions/node/*/bin/pi 2>/
 if [ -z "$PI" ]; then log "no pi binary found"; exit 0; fi
 
 # ---- build prompt -----------------------------------------------------------
-if [ "$MODE" = "news" ]; then
-  RECENT_TXT="$(recent_block news 40)"
-  HEADLINES="$(python3 "$SCRIPT_DIR/fetch-headlines.py" "${FEEDS[@]}")"
-  if [ -z "$HEADLINES" ]; then log "news: no headlines fetched"; exit 0; fi
-  TEMPLATE="$SCRIPT_DIR/news-prompt.txt"
-  TTL="$NEWS_TTL"
-else
-  RECENT_TXT="$(recent_block quote 30)"
-  HEADLINES=""
-  TEMPLATE="$SCRIPT_DIR/quotes-prompt.txt"
-  TTL="$QUOTE_TTL"
-fi
+RECENT_TXT="$(recent_block news 40)"
+HEADLINES="$(python3 "$SCRIPT_DIR/fetch-headlines.py" "${FEEDS[@]}")"
+if [ -z "$HEADLINES" ]; then log "news: no headlines fetched"; exit 0; fi
+TEMPLATE="$SCRIPT_DIR/news-prompt.txt"
+TTL="$NEWS_TTL"
 
 PROMPT="$(RECENT="$RECENT_TXT" HEADLINES="$HEADLINES" python3 -c '
 import os, sys
@@ -142,8 +121,8 @@ print(t)
 ' "$TEMPLATE")"
 
 # ---- run the model ----------------------------------------------------------
-# Retry once if the model (a) overruns the 64-char display — a truncated quote
-# clipped mid-attribution reads worse than staying quiet — or (b) returns an
+# Retry once if the model (a) overruns the 64-char display — a clipped
+# headline reads worse than a shorter one — or (b) returns an
 # empty/unparseable response (an occasional transient blip); the retry note
 # tells it what went wrong. A legitimate SKIP is respected immediately.
 line=""; extra=""
@@ -190,7 +169,7 @@ if printf '%s' "$line" | grep -qiE '^skip$'; then
 fi
 
 # Char-accurate cap (bash substring counts bytes; the — em-dash is 3 bytes,
-# which would clip an attribution mid-word). Server also caps at LED_MAX_CHARS.
+# which would clip a character mid-sequence). Server also caps at LED_MAX_CHARS.
 line="$(TXT="$line" python3 -c 'import os; print(os.environ["TXT"][:64])')"
 
 # ---- deliver ----------------------------------------------------------------
