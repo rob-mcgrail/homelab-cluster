@@ -320,7 +320,7 @@ mirrored in the panel swatches):
 **No colour → band colour:** when a caller sends **no** `colour`, `showOnLed`
 omits it and the device (esp-tou **v7+**) renders the message in the **current
 tariff-band colour** (green/amber/red). That's the default for generic push
-mirrors and the news/quotes curator. The explicit colours above still override.
+mirrors and the news curator. The explicit colours above still override.
 
 **Endpoints (`server.ts`):**
 - `POST /api/led {text, colour?, ttl?}` — the dashboard's **LED panel**
@@ -345,41 +345,38 @@ path. Both are LED-only (no phone push).
 disk ≥90%, 1-min load ≥3×cores, or a container is crash-looping — each with a
 30-min re-alert cooldown, cleared when the condition resolves.
 
-## LED news & quotes (ambient curator)
+## LED news (ambient curator)
 
 `news-led/run-news-led.sh` — a host cron job (`*/5 * * * *`) that regularly
-surfaces one genuinely-interesting item on the LCD: either a **news** headline or
-a **quote/aphorism**. It's LED-only (`push:false`) — ambient, never a phone buzz.
-Like the other bots it POSTs to the dashboard's `/api/event` (the single LED
-egress); no `server.ts` changes.
+surfaces one genuinely-interesting **news** headline on the LCD. It's LED-only
+(`push:false`) — ambient, never a phone buzz. Like the other bots it POSTs to the
+dashboard's `/api/event` (the single LED egress); no `server.ts` changes.
+
+(It also showed quotes/aphorisms until Oct 2026; that mode was dropped as not
+good enough.)
 
 Each 5-min tick:
 1. **Waking-hours gate** — proceeds only 07:00–23:00 **NZ local**, read via
    `TZ="Pacific/Auckland"` so it self-corrects for NZDT/NZST (the host is UTC).
-2. **Rate gate** — fires ~2/3 of ticks (`TARGET_SHOWS_PER_HOUR`/`ATTEMPTS_PER_HOUR`
-   = 8/12) so it averages **~8/hour**.
-3. **Mode** — ~50/50 news vs quote (`QUOTE_PCT`). News may return **SKIP** only if
-   nothing is of any interest (rare now); quotes never skip.
-4. **Curation** — a `pi` call (`deepseek-v4-flash`, `--thinking high`, `--no-tools`):
-   - *news*: fetches RSS (`fetch-headlines.py`: BBC World/Business, Guardian
-     World, RNZ, Ars Technica, HN) and picks ONE crisp ≤64-char line for the
-     persona — mid-40s Whanganui web dev, into global affairs + philosophy.
-   - *quote*: one **deep cut** — an obscure-but-genuine line from the great
-     aphorists (Nietzsche, Leibniz, Pascal, …) **plus Mao & Lenin**, with the
-     famous greatest-hits explicitly banned. **No attribution shown** (Rob guesses).
+2. **Rate gate** — fires ~1/3 of ticks (`TARGET_SHOWS_PER_HOUR`/`ATTEMPTS_PER_HOUR`
+   = 4/12) so it averages **~4/hour**.
+3. **Curation** — a `pi` call (`deepseek-v4-flash`, `--thinking high`, `--no-tools`)
+   fetches RSS (`fetch-headlines.py`: BBC World/Business, Guardian World, RNZ,
+   Ars Technica, HN) and picks ONE crisp ≤64-char line for the persona — mid-40s
+   Whanganui web dev, into global affairs + philosophy. May return **SKIP** only
+   if nothing is of any interest (rare).
    - **No colour is sent** — the payload omits it, so the LED shows each line in
      the **current tariff-band colour** (green/amber/red) via esp-tou v7+.
    - Overruns 64 chars, or an empty/unparseable reply → **one retry**; char-accurate
      cap as last resort.
-5. **Recycling allowed** — recent lines are logged to `news-led/state/recent.jsonl`
+4. **Recycling allowed** — recent lines are logged to `news-led/state/recent.jsonl`
    (gitignored, last 300) and fed back to bias toward variety, but at this cadence
    repeats are fine — a huge story re-showing beats going quiet.
 
-Prompts live in `news-led/news-prompt.txt` / `quotes-prompt.txt` (tune the bar,
-roster, or persona there). Config knobs (waking window, rate, quote %, colours,
-model, feeds) are at the top of the script. Manual test flags: `--now` (skip
-gates), `--dry` (print, don't post), `--news` / `--quote` (force mode). Runtime
-log: `news-led/state/run.log`.
+The prompt lives in `news-led/news-prompt.txt` (tune the bar or persona there).
+Config knobs (waking window, rate, TTL, model, feeds) are at the top of the
+script. Manual test flags: `--now` (skip gates), `--dry` (print, don't post).
+Runtime log: `news-led/state/run.log`.
 
 ## Jellyfin libraries
 
