@@ -23,14 +23,6 @@ movie-bot-data/movie-thoughts.jsonl
 movie-bot-data/completed-recs-runs/*
 !movie-bot-data/completed-recs-runs/.gitkeep
 
-# Double Features bot (active, dismissed, run reports)
-movie-bot-data/double-features/*
-!movie-bot-data/double-features/.gitkeep
-movie-bot-data/dismissed-double-features/*
-!movie-bot-data/dismissed-double-features/.gitkeep
-movie-bot-data/completed-double-feature-runs/*
-!movie-bot-data/completed-double-feature-runs/.gitkeep
-
 # Library sweep logs (missing/cutoff cron)
 movie-bot-data/sweep-logs/*
 !movie-bot-data/sweep-logs/.gitkeep
@@ -44,17 +36,6 @@ movie-bot-data/youtube-grabs/completed/*
 # Web Push subscription records — contain device endpoint + auth secret;
 # runtime state written by the dashboard, never source-of-truth.
 movie-bot-data/push-subscriptions.json
-
-# Nightly film reviews — bot output, regenerated continually.
-movie-bot-data/reviews/*
-!movie-bot-data/reviews/.gitkeep
-movie-bot-data/completed-review-runs/*
-!movie-bot-data/completed-review-runs/.gitkeep
-movie-bot-data/.review-drafts/
-movie-bot-data/.review-pending/
-movie-bot-data/.commission-queue/
-movie-bot-data/.reviews.lock
-movie-bot-data/.commission-processor.lock
 
 # Ambient LED news/quotes curator — runtime state (dedup log + run log)
 news-led/state/

@@ -1,4 +1,4 @@
-import { readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { loadavg, totalmem, freemem, cpus } from "node:os";
 import { statfsSync } from "node:fs";
 import webpush from "web-push";
@@ -10,11 +10,6 @@ const COMPLETED_TRIAGE_DIR = `${DATA_DIR}/completed-triage-runs`;
 const COMPLETED_RECS_DIR = `${DATA_DIR}/completed-recs-runs`;
 const RECS_FILE = `${DATA_DIR}/recommendations.jsonl`;
 const THOUGHTS_FILE = `${DATA_DIR}/movie-thoughts.jsonl`;
-const DOUBLE_FEATURES_DIR = `${DATA_DIR}/double-features`;
-const DISMISSED_DOUBLE_FEATURES_DIR = `${DATA_DIR}/dismissed-double-features`;
-const REVIEWS_DIR = `${DATA_DIR}/reviews`;
-const COMMISSION_QUEUE_DIR = `${DATA_DIR}/.commission-queue`;
-const REVIEW_PENDING_DIR = `${DATA_DIR}/.review-pending`;
 const YT_GRAB_PENDING_DIR = `${DATA_DIR}/youtube-grabs/pending`;
 const YT_GRAB_COMPLETED_DIR = `${DATA_DIR}/youtube-grabs/completed`;
 const QB_URL = "http://qbittorrent:8080";
@@ -170,37 +165,6 @@ async function appendJsonl(path: string, obj: any) {
   await Bun.write(path, existing + line);
 }
 
-function parseFrontmatter(content: string): { fm: Record<string, string>; body: string } | null {
-  const m = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n+([\s\S]*)$/);
-  if (!m) return null;
-  const fm: Record<string, string> = {};
-  for (const line of m[1].split("\n")) {
-    const kv = line.match(/^(\w+):\s*(.*)$/);
-    if (kv) fm[kv[1]] = kv[2].trim();
-  }
-  return { fm, body: m[2].trim() };
-}
-
-function parseDoubleFeature(content: string, filename: string) {
-  const m = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n+([\s\S]*)$/);
-  if (!m) return null;
-  const fm: Record<string, string> = {};
-  for (const line of m[1].split("\n")) {
-    const kv = line.match(/^(\w+):\s*(.*)$/);
-    if (kv) fm[kv[1]] = kv[2].trim();
-  }
-  return {
-    id: fm.id || filename.replace(/\.md$/, ""),
-    filmA: fm.filmA || "",
-    filmB: fm.filmB || "",
-    filmAId: fm.filmAId || null,
-    filmBId: fm.filmBId || null,
-    createdAt: fm.createdAt || null,
-    runId: fm.runId || "",
-    reason: m[2].trim(),
-  };
-}
-
 let jellyfinMeta: { userId: string; filmsLibId: string } | null = null;
 async function getJellyfinMeta() {
   if (jellyfinMeta) return jellyfinMeta;
@@ -304,8 +268,8 @@ function formatEta(seconds: number): string {
   return `${m}m`;
 }
 
-// Edge-cache header for the bot-output / log endpoints (reviews,
-// double-features, recs, history, runs). `Vary: Cookie` keys the
+// Edge-cache header for the bot-output / log endpoints (recs,
+// history, runs). `Vary: Cookie` keys the
 // cache by the homelab_auth cookie value — for a single-user
 // homelab that's one cache entry per endpoint, owned by the one
 // cookie. Unauthed requests (no cookie) hash differently, miss the
@@ -313,8 +277,8 @@ function formatEta(seconds: number): string {
 // s-maxage + SWR, returning visits to these panels serve from the
 // user's nearest CF PoP rather than round-tripping home.
 //
-// 1 min fresh + 10 min SWR: pending markers and new commissions
-// become visible within a minute under steady traffic.
+// 1 min fresh + 10 min SWR: new bot output becomes visible within a
+// minute under steady traffic.
 const PRIVATE_SLOW_CACHE = {
   "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=600",
   "Vary": "Cookie",
@@ -975,151 +939,6 @@ const server = Bun.serve({
         return Response.json({ ok: true });
       } catch {
         return new Response("bad request", { status: 400 });
-      }
-    }
-
-    if (req.method === "GET" && url.pathname === "/api/double-features") {
-      try {
-        const files = (await readdir(DOUBLE_FEATURES_DIR))
-          .filter((f) => f.endsWith(".md"))
-          .sort();
-        const items: any[] = [];
-        for (const f of files) {
-          const content = await Bun.file(`${DOUBLE_FEATURES_DIR}/${f}`).text();
-          const parsed = parseDoubleFeature(content, f);
-          if (parsed) items.push(parsed);
-        }
-        // Newest first by createdAt (string ISO sorts lexically)
-        items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-        return Response.json(items, { headers: PRIVATE_SLOW_CACHE });
-      } catch {
-        return Response.json([]);
-      }
-    }
-
-    {
-      const m = url.pathname.match(/^\/api\/double-features\/([^/]+)\/dismiss$/);
-      if (m && req.method === "POST") {
-        const id = m[1];
-        // Slug whitelist — prevent path traversal via ../ or absolute paths
-        if (!/^[a-zA-Z0-9-]+$/.test(id)) {
-          return new Response("bad id", { status: 400 });
-        }
-        const src = `${DOUBLE_FEATURES_DIR}/${id}.md`;
-        const dst = `${DISMISSED_DOUBLE_FEATURES_DIR}/${id}.md`;
-        if (!(await Bun.file(src).exists())) {
-          return new Response("not found", { status: 404 });
-        }
-        try {
-          await rename(src, dst);
-          return Response.json({ ok: true });
-        } catch {
-          return new Response("dismiss failed", { status: 500 });
-        }
-      }
-    }
-
-    if (req.method === "GET" && url.pathname === "/api/film-reviews") {
-      try {
-        const files = await readdir(REVIEWS_DIR);
-        const items: any[] = [];
-        for (const f of files) {
-          if (!f.endsWith(".md")) continue;
-          const content = await Bun.file(`${REVIEWS_DIR}/${f}`).text();
-          const parsed = parseFrontmatter(content);
-          if (!parsed) continue;
-          const { fm, body } = parsed;
-          const intScore = (k: string) => {
-            const v = parseInt(fm[k] || "", 10);
-            return Number.isFinite(v) ? v : null;
-          };
-          items.push({
-            id: fm.id || f.replace(/\.md$/, ""),
-            title: fm.title || "",
-            year: fm.year || "",
-            jellyfinId: fm.jellyfinId || null,
-            createdAt: fm.createdAt || null,
-            runId: fm.runId || "",
-            blurb: fm.blurb || "",
-            scoreExecution: intScore("scoreExecution"),
-            scoreExecutionEmoji: fm.scoreExecutionEmoji || "",
-            scoreStory: intScore("scoreStory"),
-            scoreStoryEmoji: fm.scoreStoryEmoji || "",
-            scoreImpact: intScore("scoreImpact"),
-            scoreImpactEmoji: fm.scoreImpactEmoji || "",
-            body,
-            pending: false,
-          });
-        }
-        items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-
-        // Prepend pending items (queued + in-flight) so the user sees
-        // their commission immediately without waiting for the review
-        // to actually finish writing. Pending items have empty body
-        // and a `pending: true` flag for the UI to render differently.
-        const pending: any[] = [];
-        const readPending = async (dir: string) => {
-          try {
-            const fs = await readdir(dir);
-            for (const f of fs) {
-              if (!f.endsWith(".json")) continue;
-              try {
-                const j = JSON.parse(await Bun.file(`${dir}/${f}`).text());
-                pending.push({
-                  id: j.slug ? `${j.slug}-${j.runId}` : f.replace(/\.json$/, ""),
-                  title: j.title || "(commission)",
-                  year: j.year || "",
-                  createdAt: j.createdAt || null,
-                  blurb: j.take ? `Commissioned: ${j.take.slice(0, 200)}` : "",
-                  pending: true,
-                  body: "",
-                });
-              } catch { /* skip malformed */ }
-            }
-          } catch { /* dir missing */ }
-        };
-        await readPending(COMMISSION_QUEUE_DIR);
-        await readPending(REVIEW_PENDING_DIR);
-        pending.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-
-        return Response.json([...pending, ...items], { headers: PRIVATE_SLOW_CACHE });
-      } catch {
-        return Response.json([]);
-      }
-    }
-
-    // Commission a review. The dashboard container has no `pi`
-    // binary so we can't run the bot here — we drop a queue file and a
-    // host cron picks it up within the next minute (see
-    // movie-bot-reviews/process-commission-queue.sh).
-    if (req.method === "POST" && url.pathname === "/api/film-reviews/commission") {
-      try {
-        const body = await req.json();
-        const title = (body.title || "").toString().trim();
-        const year = (body.year || "").toString().trim();
-        const take = (body.take || "").toString().trim();
-        if (!title) return Response.json({ error: "title required" }, { status: 400 });
-        if (!take) return Response.json({ error: "take required" }, { status: 400 });
-        if (title.length > 200) return Response.json({ error: "title too long" }, { status: 400 });
-        if (year && !/^\d{4}$/.test(year)) {
-          return Response.json({ error: "year must be a 4-digit number or blank" }, { status: 400 });
-        }
-        if (take.length > 4000) {
-          return Response.json({ error: "take too long (max 4000 chars)" }, { status: 400 });
-        }
-        const ts = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
-        const id = `${ts}-${Math.random().toString(36).slice(2, 8)}`;
-        await Bun.write(
-          `${COMMISSION_QUEUE_DIR}/${id}.json`,
-          JSON.stringify({
-            id, title, year, take,
-            createdAt: new Date().toISOString(),
-            requestedAt: Math.floor(Date.now() / 1000),
-          })
-        );
-        return Response.json({ ok: true, id }, { status: 202 });
-      } catch (e) {
-        return Response.json({ error: (e as Error).message || "bad request" }, { status: 400 });
       }
     }
 

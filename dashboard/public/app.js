@@ -4,12 +4,10 @@ import torrentsPanel from './panels/torrents.js';
 import statusPanel from './panels/status.js';
 import recsPanel from './panels/recs.js';
 import linksPanel from './panels/links.js';
-import doubleFeaturesPanel from './panels/double-features.js';
 import floodlightsPanel from './panels/floodlights.js';
 import youtubePanel from './panels/youtube.js';
 import ledPanel from './panels/led.js';
 import dockerPanel from './panels/docker.js';
-import filmReviewsPanel from './panels/film-reviews.js';
 import { setPanels } from './config.js';
 
 // Default-timeout wrapper around the native fetch. Any fetch in the
@@ -27,7 +25,7 @@ window.fetch = function(input, init = {}) {
   return p;
 };
 
-const panels = [filmReviewsPanel, doubleFeaturesPanel, recsPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, youtubePanel, ledPanel, linksPanel, dockerPanel];
+const panels = [recsPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, youtubePanel, ledPanel, linksPanel, dockerPanel];
 setPanels(panels.length);
 
 const PAGES = panels.length;
@@ -66,7 +64,9 @@ function pageFromHash() {
   return idToIndex.has(id) ? idToIndex.get(id) : null;
 }
 const hashTarget = pageFromHash();
-let page = hashTarget !== null ? hashTarget : 4;
+// Default landing panel is the Movie Bot — looked up by id, not index,
+// so adding/removing panels ahead of it doesn't shift the start page.
+let page = hashTarget !== null ? hashTarget : idToIndex.get('main');
 let startX = 0, startY = 0, startTime = 0, gesture = null, pullPanel = null;
 
 // ---- desktop navigation paddles ----
