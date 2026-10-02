@@ -434,6 +434,81 @@ Trade-off notes:
 - **SARTRE, r00t, BONE, SM737, HazMatt, DarkAngie (Tigole-family), TheUpscaler** — x265 HEVC encoders, preferred when available (Rob1080's +10 HEVC score nudges toward these).
 - **YTS/YIFY** — blocked. Bitrates too low, transcoding tends to look bad.
 
+## Seeding & private tracker standing
+
+Private trackers (**CinemaZ**, **IPTorrents**) enforce hit-and-run rules — you
+must seed a grab for a minimum period or you get an H&R strike. CinemaZ's is
+3 days. The policy lives in **qBittorrent's global preferences**, not on
+individual torrents, so every new grab inherits it with no manual step:
+
+| Setting | Value | Why |
+|---|---|---|
+| `max_active_torrents` | `-1` | **Critical.** See below. |
+| `max_active_uploads` | `-1` | ditto |
+| `max_active_downloads` | `5` | download queue is still useful |
+| `max_seeding_time` | `30240` (21d) | 7× the CinemaZ H&R minimum |
+| `max_ratio_enabled` | `false` | ratios here are ~0.0–0.2; a ratio cap would never fire |
+| `max_inactive_seeding_time_enabled` | `false` | arthouse titles are idle for weeks by nature |
+| `max_ratio_act` | `1` — Remove torrent, **files kept** | media is hardlinked into `/data/media`, so removal frees nothing and breaks nothing |
+| `max_uploads` / `..._per_torrent` | `30` / `8` | 10 global slots starved dozens of seeds |
+
+**Never enable the seeding queue.** This is the trap that caused a batch of H&R
+strikes in Sep 2026. `max_active_torrents` was `30` while the client held 50
+torrents, so **19 sat in `queuedUP`** — and a queued torrent in libtorrent is
+*paused*: it does not announce, so the tracker credits it **zero seed time**.
+Every H&R-flagged torrent was in that queued set; none of the 30 active ones
+were. The symptom is deceptive — the tracker shows `Progress 100%` (you did
+finish the download) and qBittorrent shows a plausible `seeding_time`, but the
+tracker's own "Updated" column reads *hours* ago for queued torrents versus
+*minutes* for active ones, and its "For" counter creeps up only when libtorrent
+happens to rotate the seed queue. Diagnose with:
+
+```sh
+source .api_keys
+curl -s "$QBITTORRENT_URL/api/v2/torrents/info" | python3 -c "
+import sys,json; from collections import Counter
+d=json.load(sys.stdin); c=Counter(t['state'] for t in d); print(dict(c))
+print('queuedUP:', c['queuedUP'], '(must be 0)   queuedDL:', c['queuedDL'], '(benign)')"
+```
+
+**`queuedUP` must always be 0.** It means a *completed* torrent is not
+announcing, so its seed time has silently stopped accruing — the H&R bug.
+
+**`queuedDL` is benign and expected.** `max_active_downloads` is deliberately
+still `5`, so a batch of grabs will park the surplus in the download queue.
+Those torrents haven't finished downloading, so they carry no seed obligation
+yet. Don't confuse the two — only the *upload* queue causes H&R strikes.
+
+`stalledUP` is the healthy state for a seed with no current leechers; it is
+still announcing.
+
+### Exempting a torrent from the 21-day cull
+
+Some CinemaZ titles have single-digit seeder counts and you may be the only
+seed — dropping those kills the torrent outright on a tracker that exists to
+keep obscure film alive. Check the seeder count on the tracker's peer list
+first; if it's ≤3, exempt it:
+
+```sh
+source .api_keys
+curl -s -X POST "$QBITTORRENT_URL/api/v2/torrents/setShareLimits" \
+  -d "hashes=$HASH&ratioLimit=-1&seedingTimeLimit=-1&inactiveSeedingTimeLimit=-1"
+curl -s -X POST "$QBITTORRENT_URL/api/v2/torrents/addTags" \
+  -d "hashes=$HASH&tags=keep-seeding"
+```
+
+`-1` = unlimited, `-2` = follow the global policy. The **`keep-seeding` tag** is
+the marker for "deliberately exempt" — currently `Wolf and Sheep 2016` (sole
+seeder), `Shéhérazade 2018`, `Krabat 2008`. Don't set per-torrent limits for any
+other reason; a hand-set limit is invisible and drifts out of sync with the
+global policy, which is how the Sep 2026 breakage went unnoticed for weeks.
+
+### Alt-speed scheduler
+
+Upload is throttled to 600 KiB/s between **09:00–17:00 NZ local** (the container
+runs `TZ=Pacific/Auckland`, so the window is local time even though the host is
+UTC). Throttling does **not** affect announces, so it's never an H&R cause.
+
 ## Sonarr root folders
 
 - `/data/media/tv` — main TV
