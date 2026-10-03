@@ -120,6 +120,7 @@ Hardlinks only work within a single branch, so both files must physically live o
 | Navidrome   | 4533 |
 | Home Assistant | 8123 |
 | tv          | _no host port_ — only via Caddy at `tv.{DOMAIN}` |
+| books       | _no host port_ — only via Caddy at `books.{DOMAIN}` |
 
 ## DNS
 
@@ -281,6 +282,36 @@ curl -s -X POST -H "Content-Type: application/json" "$TV_URL/api/channels" \
 curl -s -X POST -H "Content-Type: application/json" "$TV_URL/api/channels/bulk" \
   -d '{"ids": [1,2,3], "action": "disable"}'
 ```
+
+## books
+
+Minimal OPDS catalog at `books.{DOMAIN}` for KOReader on the jailbroken Kindle.
+Single `books/server.ts` (Bun, no deps, no DB) — same shape as `tv` / `auth`.
+
+**The folder tree is the catalog.** Drop ebooks into `/srv/data/media/books`
+(any nesting, e.g. `Author/Title.epub`); they appear on the next request.
+Subfolders become navigation entries, files become downloads, the title is the
+filename minus its extension (`.`/`_` → spaces). No metadata extraction, so name
+files how you want them to read. Mounted read-only at `/books`; the `media/books`
+folder exists on every disk so `epmfs` can place it anywhere.
+
+Formats: epub, pdf, mobi, azw/azw3, fb2, djvu, cbz/cbr, txt (`MIME` map at the
+top of `server.ts` — add an extension there to serve it).
+
+**KOReader:** Search → OPDS catalog → `+` → URL `https://books.{DOMAIN}/opds`.
+LAN-only (wildcard → `${LAN_IP}`, no tunnel ingress), so the Kindle must be on
+home wifi to browse/download.
+
+**Uploading:** the dashboard's **Books** panel (`public/panels/books.js`) uploads
+files straight into the folder — pick or drag-drop, then pull them down in
+KOReader. `POST /api/books/upload` in `dashboard/server.ts` keeps only the
+basename, rejects unknown extensions, files over 95 MB (under the CF tunnel's
+100 MB cap) and names that already exist, writes to a hidden `.part` temp then
+renames (the OPDS server skips dotfiles), and chowns to `rob:media`. The
+dashboard mounts `${DATA_ROOT}/media/books` read-write at `/books` for this.
+
+Endpoints: `/opds` (root), `/opds?path=a/b` (subfolder), `/opds/recent` (50 newest
+books across all folders), `/file/<path>` (download; traversal-guarded).
 
 ## jellyfin-proxy
 

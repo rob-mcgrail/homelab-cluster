@@ -6,6 +6,7 @@ import recsPanel from './panels/recs.js';
 import linksPanel from './panels/links.js';
 import floodlightsPanel from './panels/floodlights.js';
 import youtubePanel from './panels/youtube.js';
+import booksPanel from './panels/books.js';
 import ledPanel from './panels/led.js';
 import dockerPanel from './panels/docker.js';
 import { setPanels } from './config.js';
@@ -25,7 +26,7 @@ window.fetch = function(input, init = {}) {
   return p;
 };
 
-const panels = [recsPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, youtubePanel, ledPanel, linksPanel, dockerPanel];
+const panels = [recsPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, youtubePanel, booksPanel, ledPanel, linksPanel, dockerPanel];
 setPanels(panels.length);
 
 const PAGES = panels.length;

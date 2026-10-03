@@ -13,7 +13,8 @@ const SERVICES = [
   { host: 'bazarr',                   name: 'Bazarr',                      desc: 'Subtitle management' },
   { host: 'navidrome',                name: 'Navidrome',                   desc: 'Music streaming server' },
   { host: 'tv',                       name: 'tv',                          desc: 'IPTV playlist manager (renders /playlist.m3u)' },
-  { host: 'ha',                       name: 'Home Assistant',              desc: 'Floodlights, sirens, automations' },
+  { host: 'books',                    name: 'Books',                       desc: 'OPDS catalog for KOReader (raw XML in a browser)', path: '/opds' },
+  { host: 'ha',                      name: 'Home Assistant',              desc: 'Floodlights, sirens, automations' },
   { host: 'auth.www',                 name: 'Auth',                        desc: 'Mint a fresh access cookie (do before leaving the LAN)' },
   { host: 'lifts',                    name: 'Lifts',                       desc: 'Lifting tracker (separate repo: ~/lifts)' },
 ];

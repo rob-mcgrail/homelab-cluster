@@ -1,4 +1,4 @@
-import { readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
+import { chown, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { loadavg, totalmem, freemem, cpus } from "node:os";
 import { statfsSync } from "node:fs";
 import webpush from "web-push";
@@ -12,6 +12,13 @@ const RECS_FILE = `${DATA_DIR}/recommendations.jsonl`;
 const THOUGHTS_FILE = `${DATA_DIR}/movie-thoughts.jsonl`;
 const YT_GRAB_PENDING_DIR = `${DATA_DIR}/youtube-grabs/pending`;
 const YT_GRAB_COMPLETED_DIR = `${DATA_DIR}/youtube-grabs/completed`;
+// Books panel: uploads land in the same folder the books OPDS server
+// (books/server.ts) catalogs, so they appear on the Kindle immediately.
+const BOOKS_DIR = "/books";
+const BOOK_EXTS = new Set([".epub", ".pdf", ".mobi", ".azw3", ".azw", ".fb2", ".djvu", ".cbz", ".cbr", ".txt"]);
+const BOOK_MAX_BYTES = 95 * 1024 * 1024; // under the CF tunnel's 100 MB body cap
+const BOOKS_UID = parseInt(process.env.PUID || "1000", 10);
+const BOOKS_GID = parseInt(process.env.PGID || "1001", 10);
 const QB_URL = "http://qbittorrent:8080";
 const JELLYFIN_URL = "http://jellyfin:8096";
 const JELLYFIN_API_KEY = process.env.JELLYFIN_API_KEY || "";
@@ -1208,6 +1215,77 @@ const server = Bun.serve({
       } catch {
         return Response.json([]);
       }
+    }
+
+    // Books panel: newest uploads + total count for the list under the form.
+    if (req.method === "GET" && url.pathname === "/api/books") {
+      try {
+        const names = (await readdir(BOOKS_DIR, { recursive: true })).filter(
+          (n) => !n.split("/").some((p) => p.startsWith(".")) && BOOK_EXTS.has(n.slice(n.lastIndexOf(".")).toLowerCase())
+        );
+        const books = (
+          await Promise.all(
+            names.map(async (n) => {
+              try {
+                const st = await stat(`${BOOKS_DIR}/${n}`);
+                return { name: n, size: st.size, mtime: st.mtimeMs };
+              } catch {
+                return null;
+              }
+            })
+          )
+        ).filter(Boolean) as { name: string; size: number; mtime: number }[];
+        books.sort((a, b) => b.mtime - a.mtime);
+        return Response.json({ total: books.length, recent: books.slice(0, 15) });
+      } catch {
+        return Response.json({ total: 0, recent: [] });
+      }
+    }
+
+    // Books panel upload: multipart `file` field(s). Each file is written
+    // to a hidden .part temp (the OPDS server skips dotfiles) and renamed
+    // into place, so the Kindle never sees a half-written book. Existing
+    // names are left alone rather than overwritten.
+    if (req.method === "POST" && url.pathname === "/api/books/upload") {
+      let form: FormData;
+      try {
+        form = await req.formData();
+      } catch {
+        return Response.json({ error: "expected multipart form data" }, { status: 400 });
+      }
+      const results: { name: string; ok: boolean; error?: string }[] = [];
+      for (const f of form.getAll("file")) {
+        if (!(f instanceof File)) continue;
+        // Basename only, no control chars — never let the client pick a directory.
+        const name = (f.name.split(/[\\/]/).pop() || "").replace(/[\x00-\x1f]/g, "").trim();
+        const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
+        if (!name || name.startsWith(".") || !BOOK_EXTS.has(ext)) {
+          results.push({ name: name || "(unnamed)", ok: false, error: "not a supported book format" });
+          continue;
+        }
+        if (f.size > BOOK_MAX_BYTES) {
+          results.push({ name, ok: false, error: "too large (max 95 MB)" });
+          continue;
+        }
+        const dst = `${BOOKS_DIR}/${name}`;
+        if (await Bun.file(dst).exists()) {
+          results.push({ name, ok: false, error: "already on the server" });
+          continue;
+        }
+        const tmp = `${BOOKS_DIR}/.${name}.part`;
+        try {
+          await Bun.write(tmp, f);
+          await chown(tmp, BOOKS_UID, BOOKS_GID).catch(() => {});
+          await rename(tmp, dst);
+          results.push({ name, ok: true });
+        } catch (e) {
+          await unlink(tmp).catch(() => {});
+          console.error("books upload error:", e);
+          results.push({ name, ok: false, error: "write failed" });
+        }
+      }
+      if (!results.length) return Response.json({ error: "no files" }, { status: 400 });
+      return Response.json({ results });
     }
 
     // Static-asset cache header. Aggressive long-window caching for the

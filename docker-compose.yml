@@ -235,6 +235,10 @@ services:
       # is the sole container that talks to it, so remote/tunnelled use of
       # the dashboard still drives the LED).
       - LED_URL=${LED_URL}
+      # Owner for files written into shared media folders (books uploads):
+      # rob + the shared media group, matching the rest of /data/media.
+      - PUID=1000
+      - PGID=${PGID}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -251,6 +255,9 @@ services:
       # old version until restart).
       - ${DATA_ROOT}/media/kids/youtube:/youtube
       - ./scripts:/scripts:ro
+      # Books panel: writable mount of the folder the books OPDS server
+      # catalogs, so uploads from the dashboard show up on the Kindle.
+      - ${DATA_ROOT}/media/books:/books:rslave
       # Read-only access to the Docker socket so the /api/docker-stats
       # endpoint can list containers + pull CPU/mem stats for the panel.
       # :ro is file-permission only — anyone who can talk to the socket
@@ -283,6 +290,20 @@ services:
       # Bind-mount public/ so UI tweaks don't need an image rebuild
       # (matches the dashboard pattern).
       - ./tv/public:/app/public
+    restart: unless-stopped
+
+  books:
+    build: ./books
+    container_name: books
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    # Minimal OPDS catalog for KOReader. No host ports — Caddy reaches it
+    # at books:8000 via books.{DOMAIN} (LAN-only by the wildcard A record).
+    volumes:
+      - ${DATA_ROOT}/media/books:/books:ro,rslave
     restart: unless-stopped
 
   auth:
