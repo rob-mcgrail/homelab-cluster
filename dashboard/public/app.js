@@ -9,6 +9,8 @@ import youtubePanel from './panels/youtube.js';
 import booksPanel from './panels/books.js';
 import ledPanel from './panels/led.js';
 import dockerPanel from './panels/docker.js';
+import newPanel from './panels/new.js';
+import rollPanel from './panels/roll.js';
 import { setPanels } from './config.js';
 
 // Default-timeout wrapper around the native fetch. Any fetch in the
@@ -26,7 +28,7 @@ window.fetch = function(input, init = {}) {
   return p;
 };
 
-const panels = [recsPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, youtubePanel, booksPanel, ledPanel, linksPanel, dockerPanel];
+const panels = [recsPanel, rollPanel, historyPanel, mainPanel, torrentsPanel, statusPanel, floodlightsPanel, newPanel, youtubePanel, booksPanel, ledPanel, linksPanel, dockerPanel];
 setPanels(panels.length);
 
 const PAGES = panels.length;

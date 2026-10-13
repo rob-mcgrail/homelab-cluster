@@ -1,4 +1,4 @@
-import { PANELS as DOTS } from '../config.js';
+import { PANELS as DOTS, DOMAIN } from '../config.js';
 
 
 
@@ -18,8 +18,6 @@ const SERVICES = [
   { host: 'auth.www',                 name: 'Auth',                        desc: 'Mint a fresh access cookie (do before leaving the LAN)' },
   { host: 'lifts',                    name: 'Lifts',                       desc: 'Lifting tracker (separate repo: ~/lifts)' },
 ];
-
-const DOMAIN = 'office-computer-online-worldwide.org';
 
 function dots() {
   return Array.from({ length: DOTS }, (_, i) => `<div class="dot" data-p="${i}"></div>`).join('');

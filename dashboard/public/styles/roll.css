@@ -1,0 +1,83 @@
+.panel-roll { background: #120a0e; }
+
+.roll-zone { position: relative; height: 70px; margin-bottom: 0.5rem; }
+.roll-critter {
+  position: absolute; font-size: 2rem;
+  filter: drop-shadow(0 0 12px rgba(251, 113, 133, 0.3));
+}
+.roll-c0 { left: 14%; top: 12px; animation: rollTumble 6s ease-in-out infinite; }
+.roll-c1 { left: 46%; top: 6px;  animation: rollBob 7s ease-in-out infinite -2s; font-size: 2.3rem; }
+.roll-c2 { left: 76%; top: 18px; animation: rollTumble 5s ease-in-out infinite -1.5s; font-size: 1.6rem; }
+@keyframes rollTumble {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-8px) rotate(180deg); }
+}
+@keyframes rollBob {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50%      { transform: translateY(-6px) rotate(4deg); }
+}
+
+.section-title-roll {
+  font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
+  color: #fb7185; margin-bottom: 1rem;
+  text-shadow: 0 0 10px rgba(251, 113, 133, 0.3);
+}
+
+.roll-controls {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+.roll-controls label {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  font-size: 0.7rem; color: #9a6070; text-transform: uppercase; letter-spacing: 0.05em;
+  flex: 1 1 7rem;
+}
+.roll-controls select {
+  background: #1c1015; color: #fbe4e9; border: 1px solid #3a1e28; border-radius: 10px;
+  padding: 0.55rem 0.6rem; font-family: inherit; font-size: 0.85rem;
+}
+.roll-btn {
+  flex: 0 0 auto;
+  background: linear-gradient(180deg, #fb7185, #e11d48);
+  color: #1a0810; border: 0; border-radius: 10px;
+  padding: 0.65rem 1.4rem; font-weight: 700; letter-spacing: 0.06em;
+  font-family: inherit; cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease;
+}
+.roll-btn:hover { filter: brightness(1.1); }
+.roll-btn:active { transform: translateY(1px); }
+.roll-btn:disabled { opacity: 0.6; cursor: default; }
+.roll-btn.spin::after { content: ' 🎲'; display: inline-block; animation: rollSpin 0.6s linear infinite; }
+@keyframes rollSpin { to { transform: rotate(360deg); } }
+
+.roll-count {
+  font-size: 0.72rem; color: #9a6070; letter-spacing: 0.04em;
+  text-transform: uppercase; margin-bottom: 0.9rem;
+}
+
+.roll-card {
+  background: #1c1015; border: 1px solid #3a1e28; border-radius: 14px;
+  padding: 1rem; display: flex; flex-direction: column; align-items: center; text-align: center;
+}
+.roll-poster {
+  width: min(220px, 60%); aspect-ratio: 2 / 3; object-fit: cover;
+  border-radius: 10px; margin-bottom: 0.9rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.roll-title { color: #fff1f3; font-size: 1.15rem; font-weight: 700; line-height: 1.3; }
+.roll-meta { margin-top: 0.3rem; color: #c48a98; font-size: 0.8rem; }
+.roll-dir { margin-top: 0.2rem; color: #9a6070; font-size: 0.78rem; font-style: italic; }
+.roll-genres { margin-top: 0.6rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.3rem; }
+.roll-genres span {
+  font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #fda4af; background: rgba(251, 113, 133, 0.1); border: 1px solid rgba(251, 113, 133, 0.25);
+  border-radius: 6px; padding: 0.15rem 0.45rem;
+}
+.roll-overview {
+  margin-top: 0.8rem; color: #d4b8bf; font-size: 0.82rem; line-height: 1.5; text-align: left;
+}
+.roll-open {
+  margin-top: 1rem; color: #fb7185; font-size: 0.78rem; font-weight: 700;
+  letter-spacing: 0.05em; text-decoration: none;
+}
+.roll-empty { color: #6a3a48; text-align: center; margin-top: 2rem; font-size: 0.9rem; }

@@ -1,0 +1,56 @@
+.panel-new { background: #0b0a12; }
+
+.new-zone { position: relative; height: 70px; margin-bottom: 0.5rem; }
+.new-critter {
+  position: absolute; font-size: 2rem;
+  filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.3));
+}
+.new-c0 { left: 14%; top: 14px; animation: newPop 5.5s ease-in-out infinite; }
+.new-c1 { left: 46%; top: 6px;  animation: newPop 7s ease-in-out infinite -2s; font-size: 2.3rem; }
+.new-c2 { left: 76%; top: 18px; animation: newPop 6s ease-in-out infinite -1s; font-size: 1.7rem; }
+@keyframes newPop {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50%      { transform: translateY(-7px) rotate(3deg); }
+}
+
+.section-title-new {
+  font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em;
+  color: #a78bfa; margin-bottom: 1rem;
+  text-shadow: 0 0 10px rgba(167, 139, 250, 0.3);
+}
+
+.new-filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+.new-filters .filter-btn { background: #110f1c; border-color: #241e3a; color: #6e62a0; }
+.new-filters .filter-btn.active {
+  background: rgba(167, 139, 250, 0.12); border-color: rgba(167, 139, 250, 0.35); color: #c4b5fd;
+}
+
+.new-section { margin-bottom: 1.4rem; }
+.new-lib {
+  font-size: 0.75rem; font-weight: 700; color: #8b7fc0;
+  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.6rem;
+}
+.new-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 0.8rem 0.6rem;
+}
+.new-card { display: block; text-decoration: none; min-width: 0; }
+.new-poster {
+  position: relative; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden;
+  background: #17142a; border: 1px solid #241e3a;
+}
+.new-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.new-played {
+  position: absolute; top: 4px; right: 4px;
+  background: rgba(0, 0, 0, 0.7); color: #86efac;
+  font-size: 0.65rem; font-weight: 700; border-radius: 6px; padding: 0.1rem 0.3rem;
+}
+.new-title {
+  margin-top: 0.35rem; color: #e9e5ff; font-size: 0.78rem; font-weight: 600; line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.new-sub {
+  margin-top: 0.15rem; color: #6e62a0; font-size: 0.68rem; line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.new-empty { color: #4a4270; font-size: 0.85rem; text-align: center; margin: 1rem 0; }

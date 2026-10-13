@@ -189,6 +189,42 @@ async function getJellyfinMeta() {
   return jellyfinMeta;
 }
 
+async function jfGet(path: string): Promise<any> {
+  const res = await fetch(`${JELLYFIN_URL}${path}`, { headers: { "X-MediaBrowser-Token": JELLYFIN_API_KEY } });
+  if (!res.ok) throw new Error(`jellyfin ${res.status}`);
+  return res.json();
+}
+
+// Every movie/tv library the user can see, in Jellyfin's own view order.
+let jellyfinLibs: { id: string; name: string; type: string }[] | null = null;
+async function getJellyfinLibs() {
+  if (jellyfinLibs) return jellyfinLibs;
+  const { userId } = await getJellyfinMeta();
+  const views: any = await jfGet(`/Users/${userId}/Views`);
+  jellyfinLibs = (views?.Items || [])
+    .filter((v: any) => v.CollectionType === "movies" || v.CollectionType === "tvshows")
+    .map((v: any) => ({ id: v.Id, name: v.Name, type: v.CollectionType }));
+  return jellyfinLibs!;
+}
+
+// Shape one /Items/Latest entry for the New panel. Grouped series carry
+// the number of new episodes in ChildCount; a lone new episode (or a
+// season) is shown under its series' poster.
+function newItem(it: any) {
+  const base = { id: it.Id, serverId: it.ServerId, addedAt: it.DateCreated || null };
+  if (it.Type === "Series") {
+    const n = it.ChildCount || 0;
+    return { ...base, grouped: true, imageId: it.Id, title: it.Name, sub: n ? `${n} new ep${n === 1 ? "" : "s"}` : "new" };
+  }
+  if (it.Type === "Episode" || it.Type === "Season") {
+    const se = it.Type === "Episode" && it.ParentIndexNumber != null && it.IndexNumber != null
+      ? `S${String(it.ParentIndexNumber).padStart(2, "0")}E${String(it.IndexNumber).padStart(2, "0")} · `
+      : "";
+    return { ...base, imageId: it.SeriesId || it.Id, title: it.SeriesName || it.Name, sub: `${se}${it.Name}` };
+  }
+  return { ...base, imageId: it.Id, title: it.Name, sub: it.ProductionYear ? String(it.ProductionYear) : "", played: !!it.UserData?.Played };
+}
+
 function ticksToMs(t: number): number {
   return Math.max(0, Math.floor(t / 10000));
 }
@@ -1078,6 +1114,101 @@ const server = Bun.serve({
       } catch {
         return Response.json([]);
       }
+    }
+
+    // New panel: latest additions per Jellyfin library. GroupItems folds
+    // new episodes into their series, so a season drop is one card.
+    if (req.method === "GET" && url.pathname === "/api/jellyfin/new") {
+      try {
+        const { userId } = await getJellyfinMeta();
+        const libs = await getJellyfinLibs();
+        const sections = await Promise.all(
+          libs.map(async (lib) => {
+            const items: any[] = await jfGet(
+              `/Users/${userId}/Items/Latest?ParentId=${lib.id}&Limit=12&GroupItems=true` +
+                `&Fields=DateCreated,ProductionYear`,
+            );
+            return { library: lib.name, type: lib.type, items: items.map(newItem) };
+          }),
+        );
+        return Response.json(sections);
+      } catch {
+        return Response.json([]);
+      }
+    }
+
+    // Roll panel: a random unwatched film from the Films library, with an
+    // optional inclusive decade range (?from=1960&to=1980 → 1960–1989).
+    // `exclude` stops an immediate re-roll landing on the same film.
+    if (req.method === "GET" && url.pathname === "/api/jellyfin/roll") {
+      try {
+        const { userId, filmsLibId } = await getJellyfinMeta();
+        const data: any = await jfGet(
+          `/Users/${userId}/Items?ParentId=${filmsLibId}&IncludeItemTypes=Movie&Recursive=true` +
+            `&Filters=IsUnplayed&Fields=ProductionYear`,
+        );
+        const all: any[] = data.Items || [];
+        const decades: Record<number, number> = {};
+        for (const it of all) {
+          if (!it.ProductionYear) continue;
+          const d = Math.floor(it.ProductionYear / 10) * 10;
+          decades[d] = (decades[d] || 0) + 1;
+        }
+        const from = Number(url.searchParams.get("from")) || 0;
+        const to = Number(url.searchParams.get("to")) || 0;
+        // Undated films only qualify when no range is set.
+        const pool = all.filter((it) => {
+          const y = it.ProductionYear;
+          if (!from && !to) return true;
+          return !!y && (!from || y >= from) && (!to || y <= to + 9);
+        });
+        const exclude = url.searchParams.get("exclude");
+        const choices = pool.length > 1 ? pool.filter((it) => it.Id !== exclude) : pool;
+        const base = {
+          total: all.length,
+          matching: pool.length,
+          decades: Object.entries(decades).map(([d, n]) => ({ decade: +d, count: n })),
+        };
+        if (!choices.length) return Response.json({ ...base, pick: null });
+        const chosen = choices[Math.floor(Math.random() * choices.length)];
+        const it: any = await jfGet(`/Users/${userId}/Items/${chosen.Id}`);
+        return Response.json({
+          ...base,
+          pick: {
+            id: it.Id,
+            serverId: it.ServerId,
+            title: it.Name,
+            year: it.ProductionYear || null,
+            overview: it.Overview || "",
+            runtimeMin: it.RunTimeTicks ? Math.round(ticksToMs(it.RunTimeTicks) / 60000) : null,
+            genres: it.Genres || [],
+            rating: it.CommunityRating || null,
+            critic: it.CriticRating ?? null,
+            directors: (it.People || []).filter((p: any) => p.Type === "Director").map((p: any) => p.Name),
+            hasImage: !!it.ImageTags?.Primary,
+          },
+        });
+      } catch {
+        return Response.json({ total: 0, matching: 0, decades: [], pick: null }, { status: 502 });
+      }
+    }
+
+    // Poster proxy so the Jellyfin API key never reaches the browser.
+    // Item ids are 32-hex; anything else is rejected before it's spliced
+    // into the upstream URL.
+    const jfImg = url.pathname.match(/^\/api\/jellyfin\/image\/([0-9a-f]{32})$/);
+    if (req.method === "GET" && jfImg) {
+      const w = Math.min(Math.max(Number(url.searchParams.get("w")) || 300, 80), 800);
+      const res = await fetch(`${JELLYFIN_URL}/Items/${jfImg[1]}/Images/Primary?maxWidth=${w}&quality=85`, {
+        headers: { "X-MediaBrowser-Token": JELLYFIN_API_KEY },
+      }).catch(() => null);
+      if (!res || !res.ok) return new Response("not found", { status: 404 });
+      return new Response(res.body, {
+        headers: {
+          "Content-Type": res.headers.get("Content-Type") || "image/jpeg",
+          "Cache-Control": "private, max-age=604800",
+        },
+      });
     }
 
     if (req.method === "GET" && url.pathname === "/api/movie-thoughts") {

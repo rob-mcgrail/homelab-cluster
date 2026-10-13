@@ -224,19 +224,21 @@ Services are also available on their original ports via IP for direct access.
 
 ## Dashboard
 
-The dashboard is a mobile-first web app at `https://www.yourdomain.org` with 11 swipeable panels (left → right). It opens on **Movie Bot** by default; `/#<panel-id>` deep-links to any other panel (push notifications use this).
+The dashboard is a mobile-first web app at `https://www.yourdomain.org` with 13 swipeable panels (left → right). It opens on **Movie Bot** by default; `/#<panel-id>` deep-links to any other panel (push notifications use this).
 
 1. **Recs** (teal, birds) — weekly AI film recommendations from `run-recs.sh` with thumbs up/down feedback that feeds future rec generations
-2. **History** (green, fish) — recent Movie Bot prompts and responses
-3. **Movie Bot** (orange, crab) — submit requests to the AI
-4. **Downloads** (blue, octopus) — active torrents. Filters: **Downloading** (qBit-active — including stalled), **Seeding** (done / queued-UP), **Triaged** (anything with a `triage-*` tag, plus freshly-queued downloads that haven't become active yet). Triaged items show a sub-badge with the specific state (`paused`, `resumed`, `queued`, `stopped`, `error`, `missing`, `unknown`) and how long they've been in it.
-5. **Server** (purple, bugs) — CPU load, memory, swap, disk usage, plus active Jellyfin streams with transcoding / source-vs-output detail
-6. **Floodlights** (coral, fox) — Reolink floodlight cam controls via Home Assistant: per-cam + "All" toggles, live MJPEG previews of each cam (tap for fullscreen HD), recent motion-triggered HD clips (paired by event, side-by-side playback), a two-tap **PANIC** button (lights + sirens), and a single-tap **SILENCE SIRENS** button to undo the siren part. See `homeassistant/NOTES.md` for the recording pipeline + presence-aware skip logic.
-7. **YouTube** (lavender, clouds) — paste a YouTube URL, watch it land in the Kids TV library. Posts to `/api/youtube-grab`, which fire-and-forget spawns `scripts/youtube-grab.sh` (yt-dlp inside the dashboard container; serialized via `flock` so concurrent submissions queue up rather than racing). Output lands at `/data/media/kids/youtube/<Channel>/<Title> [<id>].{mp4,nfo,info.json}` plus `<...>-thumb.jpg`; per-channel `tvshow.nfo` + `poster.jpg` + `fanart.jpg` are written on first video. NFOs use the `<episodedetails>` / `<tvshow>` schema so each channel surfaces as a Jellyfin TV show with its YouTube videos as episodes. The script is also runnable from the host CLI for one-off use.
-8. **Books** — upload ebooks (pick or drag-drop) into the books OPDS server, then download them on the Kindle via KOReader. Posts to `/api/books/upload`; shows the newest books and the total count.
-9. **LED** — send a short message to the LAN LED display (text, colour swatches, TTL). POSTs to `/api/led`; the dashboard relays it server-side, so it works remotely too.
-10. **Services** (yellow, bees) — quick links to all service dashboards
-11. **Docker** — every container's state plus live CPU and memory usage
+2. **Roll** (rose, dice) — rolls a random unwatched film from the Jellyfin Films library, with an optional From/To decade range (remembered per device). Shows poster, runtime, director, genres and synopsis, with a link into Jellyfin. Only the ROLL button (or changing the range) re-rolls — auto-refresh never swaps the pick. Backed by `/api/jellyfin/roll`.
+3. **History** (green, fish) — recent Movie Bot prompts and responses
+4. **Movie Bot** (orange, crab) — submit requests to the AI
+5. **Downloads** (blue, octopus) — active torrents. Filters: **Downloading** (qBit-active — including stalled), **Seeding** (done / queued-UP), **Triaged** (anything with a `triage-*` tag, plus freshly-queued downloads that haven't become active yet). Triaged items show a sub-badge with the specific state (`paused`, `resumed`, `queued`, `stopped`, `error`, `missing`, `unknown`) and how long they've been in it.
+6. **Server** (purple, bugs) — CPU load, memory, swap, disk usage, plus active Jellyfin streams with transcoding / source-vs-output detail
+7. **Floodlights** (coral, fox) — Reolink floodlight cam controls via Home Assistant: per-cam + "All" toggles, live MJPEG previews of each cam (tap for fullscreen HD), recent motion-triggered HD clips (paired by event, side-by-side playback), a two-tap **PANIC** button (lights + sirens), and a single-tap **SILENCE SIRENS** button to undo the siren part. See `homeassistant/NOTES.md` for the recording pipeline + presence-aware skip logic.
+8. **New** (violet, popcorn) — latest additions to each Jellyfin library (Films, Kids Movies, Kids TV, Shows), as poster cards; TV libraries group new episodes by series ("Jazz · 10 new eps"). Chips filter to one library. Backed by `/api/jellyfin/new`; posters come through `/api/jellyfin/image/<id>` so the API key stays server-side.
+9. **YouTube** (lavender, clouds) — paste a YouTube URL, watch it land in the Kids TV library. Posts to `/api/youtube-grab`, which fire-and-forget spawns `scripts/youtube-grab.sh` (yt-dlp inside the dashboard container; serialized via `flock` so concurrent submissions queue up rather than racing). Output lands at `/data/media/kids/youtube/<Channel>/<Title> [<id>].{mp4,nfo,info.json}` plus `<...>-thumb.jpg`; per-channel `tvshow.nfo` + `poster.jpg` + `fanart.jpg` are written on first video. NFOs use the `<episodedetails>` / `<tvshow>` schema so each channel surfaces as a Jellyfin TV show with its YouTube videos as episodes. The script is also runnable from the host CLI for one-off use.
+10. **Books** — upload ebooks (pick or drag-drop) into the books OPDS server, then download them on the Kindle via KOReader. Posts to `/api/books/upload`; shows the newest books and the total count.
+11. **LED** — send a short message to the LAN LED display (text, colour swatches, TTL). POSTs to `/api/led`; the dashboard relays it server-side, so it works remotely too.
+12. **Services** (yellow, bees) — quick links to all service dashboards
+13. **Docker** — every container's state plus live CPU and memory usage
 
 ## Storage
 
