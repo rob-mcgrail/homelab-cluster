@@ -66,7 +66,7 @@ Then `docker compose restart jellyfin-proxy` and `docker logs -f jellyfin-proxy`
 To see what Jellyfin ended up doing (direct play vs transcode, output codec/bitrate, HW accel), check the active session via API:
 
 ```sh
-source .api_keys && curl -s -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "http://localhost:8096/Sessions" | python3 -m json.tool | grep -iE 'playmethod|transcod|nowplay|video'
+source .api_keys && curl -s -H "Authorization: MediaBrowser Token=\"$JELLYFIN_API_KEY\"" "http://localhost:8096/Sessions" | python3 -m json.tool | grep -iE 'playmethod|transcod|nowplay|video'
 ```
 
 Expected for a forced-transcode session: `PlayMethod: Transcode`, `TranscodeReasons: ['VideoCodecNotSupported']`, `VideoCodec: h264`, `HardwareAccelerationType: qsv`.

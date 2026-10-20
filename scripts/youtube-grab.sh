@@ -265,7 +265,7 @@ fi
 
 # --- 4) Trigger Jellyfin library refresh (best-effort; non-fatal)
 if [ -n "${JELLYFIN_API_KEY:-}" ] && [ -n "${JELLYFIN_URL:-}" ]; then
-    curl -s -X POST -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" \
+    curl -s -X POST -H "Authorization: MediaBrowser Token=\"$JELLYFIN_API_KEY\"" \
         "$JELLYFIN_URL/Library/Refresh" >/dev/null || true
 fi
 

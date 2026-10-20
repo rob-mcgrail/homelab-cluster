@@ -93,9 +93,9 @@ curl -s "$QBITTORRENT_URL/api/v2/torrents/categories" | jq '.' > "$SETTINGS_DIR/
 echo "    preferences, categories"
 
 echo "==> Jellyfin"
-curl -s -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "$JELLYFIN_URL/Library/VirtualFolders" | jq '[.[] | {Name, CollectionType, Locations}]' > "$SETTINGS_DIR/jellyfin/libraries.json"
-curl -s -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "$JELLYFIN_URL/Users" | jq '[.[] | {Name, Policy: {IsAdministrator: .Policy.IsAdministrator, EnableAllFolders: .Policy.EnableAllFolders, EnabledFolders: .Policy.EnabledFolders, MaxStreamingBitrate: .Policy.MaxStreamingBitrate, RemoteClientBitrateLimit: .Policy.RemoteClientBitrateLimit}}]' > "$SETTINGS_DIR/jellyfin/users.json"
-curl -s -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "$JELLYFIN_URL/System/Configuration/encoding" | jq '{HardwareAccelerationType, EnableHardwareEncoding, EnableDecodingColorDepth10Hevc, EnableDecodingColorDepth10Vp9, VaapiDevice}' > "$SETTINGS_DIR/jellyfin/encoding.json"
+curl -s -H "Authorization: MediaBrowser Token=\"$JELLYFIN_API_KEY\"" "$JELLYFIN_URL/Library/VirtualFolders" | jq '[.[] | {Name, CollectionType, Locations}]' > "$SETTINGS_DIR/jellyfin/libraries.json"
+curl -s -H "Authorization: MediaBrowser Token=\"$JELLYFIN_API_KEY\"" "$JELLYFIN_URL/Users" | jq '[.[] | {Name, Policy: {IsAdministrator: .Policy.IsAdministrator, EnableAllFolders: .Policy.EnableAllFolders, EnabledFolders: .Policy.EnabledFolders, MaxStreamingBitrate: .Policy.MaxStreamingBitrate, RemoteClientBitrateLimit: .Policy.RemoteClientBitrateLimit}}]' > "$SETTINGS_DIR/jellyfin/users.json"
+curl -s -H "Authorization: MediaBrowser Token=\"$JELLYFIN_API_KEY\"" "$JELLYFIN_URL/System/Configuration/encoding" | jq '{HardwareAccelerationType, EnableHardwareEncoding, EnableDecodingColorDepth10Hevc, EnableDecodingColorDepth10Vp9, VaapiDevice}' > "$SETTINGS_DIR/jellyfin/encoding.json"
 echo "    libraries, users, encoding"
 
 echo ""

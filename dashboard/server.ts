@@ -176,12 +176,12 @@ let jellyfinMeta: { userId: string; filmsLibId: string } | null = null;
 async function getJellyfinMeta() {
   if (jellyfinMeta) return jellyfinMeta;
   const users: any = await (
-    await fetch(`${JELLYFIN_URL}/Users`, { headers: { "X-MediaBrowser-Token": JELLYFIN_API_KEY } })
+    await fetch(`${JELLYFIN_URL}/Users`, { headers: { Authorization: `MediaBrowser Token="${JELLYFIN_API_KEY}"` } })
   ).json();
   const userId = users?.[0]?.Id;
   if (!userId) throw new Error("jellyfin: no user");
   const views: any = await (
-    await fetch(`${JELLYFIN_URL}/Users/${userId}/Views`, { headers: { "X-MediaBrowser-Token": JELLYFIN_API_KEY } })
+    await fetch(`${JELLYFIN_URL}/Users/${userId}/Views`, { headers: { Authorization: `MediaBrowser Token="${JELLYFIN_API_KEY}"` } })
   ).json();
   const filmsLibId = views?.Items?.find((v: any) => v.Name === "Films")?.Id;
   if (!filmsLibId) throw new Error("jellyfin: 'Films' library not found");
@@ -190,7 +190,7 @@ async function getJellyfinMeta() {
 }
 
 async function jfGet(path: string): Promise<any> {
-  const res = await fetch(`${JELLYFIN_URL}${path}`, { headers: { "X-MediaBrowser-Token": JELLYFIN_API_KEY } });
+  const res = await fetch(`${JELLYFIN_URL}${path}`, { headers: { Authorization: `MediaBrowser Token="${JELLYFIN_API_KEY}"` } });
   if (!res.ok) throw new Error(`jellyfin ${res.status}`);
   return res.json();
 }
@@ -566,7 +566,7 @@ const server = Bun.serve({
     if (req.method === "GET" && url.pathname === "/api/jellyfin-sessions") {
       try {
         const res = await fetch(`${JELLYFIN_URL}/Sessions`, {
-          headers: { "X-MediaBrowser-Token": JELLYFIN_API_KEY },
+          headers: { Authorization: `MediaBrowser Token="${JELLYFIN_API_KEY}"` },
         });
         if (!res.ok) throw new Error(`jellyfin ${res.status}`);
         const sessions: any[] = await res.json();
@@ -1096,7 +1096,7 @@ const server = Bun.serve({
           `${JELLYFIN_URL}/Users/${userId}/Items?ParentId=${filmsLibId}` +
             `&IncludeItemTypes=Movie&Recursive=true&SortBy=DatePlayed&SortOrder=Descending` +
             `&Filters=IsPlayed&Limit=30&Fields=UserData,ProductionYear`,
-          { headers: { "X-MediaBrowser-Token": JELLYFIN_API_KEY } },
+          { headers: { Authorization: `MediaBrowser Token="${JELLYFIN_API_KEY}"` } },
         );
         const jdata: any = await jres.json();
         const thoughts = await readJsonl(THOUGHTS_FILE);
@@ -1200,7 +1200,7 @@ const server = Bun.serve({
     if (req.method === "GET" && jfImg) {
       const w = Math.min(Math.max(Number(url.searchParams.get("w")) || 300, 80), 800);
       const res = await fetch(`${JELLYFIN_URL}/Items/${jfImg[1]}/Images/Primary?maxWidth=${w}&quality=85`, {
-        headers: { "X-MediaBrowser-Token": JELLYFIN_API_KEY },
+        headers: { Authorization: `MediaBrowser Token="${JELLYFIN_API_KEY}"` },
       }).catch(() => null);
       if (!res || !res.ok) return new Response("not found", { status: 404 });
       return new Response(res.body, {

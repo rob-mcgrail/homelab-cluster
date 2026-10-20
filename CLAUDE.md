@@ -621,20 +621,22 @@ docker restart bazarr
 
 ### Jellyfin
 
+Auth is `Authorization: MediaBrowser Token="..."`. Jellyfin 12 (Oct 2026) dropped the legacy `X-MediaBrowser-Token` / `X-Emby-Token` headers, which now 401.
+
 ```sh
 # List libraries
-curl -s -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "http://localhost:8096/Library/VirtualFolders" | python3 -c "
+curl -s -H "Authorization: MediaBrowser Token=\"$JELLYFIN_API_KEY\"" "http://localhost:8096/Library/VirtualFolders" | python3 -c "
 import sys,json
 for lib in json.load(sys.stdin):
     print(f'{lib[\"Name\"]}  ({lib.get(\"CollectionType\",\"mixed\")})  {lib.get(\"Locations\",[])}')
 "
 
 # Trigger full library scan
-curl -s -X POST -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "http://localhost:8096/Library/Refresh"
+curl -s -X POST -H "Authorization: MediaBrowser Token=\"$JELLYFIN_API_KEY\"" "http://localhost:8096/Library/Refresh"
 
 # Force metadata refresh for an item (by item ID)
-curl -s -X POST -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "http://localhost:8096/Items/ITEM_ID/Refresh?replaceAllMetadata=true&replaceAllImages=true"
+curl -s -X POST -H "Authorization: MediaBrowser Token=\"$JELLYFIN_API_KEY\"" "http://localhost:8096/Items/ITEM_ID/Refresh?replaceAllMetadata=true&replaceAllImages=true"
 
 # Search for an item
-curl -s -H "X-MediaBrowser-Token: $JELLYFIN_API_KEY" "http://localhost:8096/Items?searchTerm=QUERY&Recursive=true&fields=Path&limit=10"
+curl -s -H "Authorization: MediaBrowser Token=\"$JELLYFIN_API_KEY\"" "http://localhost:8096/Items?searchTerm=QUERY&Recursive=true&fields=Path&limit=10"
 ```
